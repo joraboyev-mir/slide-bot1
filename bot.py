@@ -5,9 +5,18 @@ Professional PPTX va DOCX generatsiya
 import asyncio
 import io
 import json
+import logging
 import os
 import sys
 from pathlib import Path
+
+# Loglarni sozlash — Railway'da ko'rinadi
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    stream=sys.stdout,
+)
+log = logging.getLogger("slidebot")
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
@@ -158,6 +167,7 @@ async def handle_web_app_data(message: Message):
         return
 
     data_type = data.get("type", "")
+    log.info(f"WebApp so'rov keldi: user={user_id}, type={data_type}, data={str(data)[:200]}")
 
     if data_type == "slide":
         await process_slide_request(message, user_id, data)
@@ -203,9 +213,21 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
     )
 
     try:
+        log.info(f"SLAYD boshlandi: topic='{topic}', count={slide_count}")
         # AI kontent generatsiya (ranglar + rasm promptlari bilan)
-        slide_data = await asyncio.to_thread(
-            generate_slide_content, topic, slide_count, language
+        # Maksimal 3 daqiqa kutamiz
+        slide_data = await asyncio.wait_for(
+            asyncio.to_thread(generate_slide_content, topic, slide_count, language),
+            timeout=180
+        )
+        log.info(f"SLAYD matn tayyor: {len(slide_data.get('slides', []))} ta slayd")
+
+        await wait_msg.edit_text(
+            "⏳ <b>Slayd tayyorlanmoqda...</b>\n\n"
+            f"📌 Mavzu: {topic}\n"
+            f"✅ Matn tayyor!\n"
+            f"🖼 Endi rasmlar yaratilmoqda ({slide_count} ta)...\n\n"
+            "Yana 1-2 daqiqa kuting..."
         )
 
         # Muallif ismini qo'shish
@@ -213,10 +235,12 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
         if author:
             slide_data["author"] = author
 
-        # PPTX generatsiya (rasmlar yuklab olinadi — uzoq jarayon)
-        pptx_bytes = await asyncio.to_thread(
-            generate_professional_pptx, slide_data
+        # PPTX generatsiya (rasmlar yuklab olinadi — maksimal 5 daqiqa)
+        pptx_bytes = await asyncio.wait_for(
+            asyncio.to_thread(generate_professional_pptx, slide_data),
+            timeout=300
         )
+        log.info(f"SLAYD PPTX tayyor: {len(pptx_bytes)} bayt")
 
         # Statistikani yangilash
         await increment_user_stats(user_id, "slide")
@@ -239,11 +263,25 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
 
         await wait_msg.delete()
 
+    except asyncio.TimeoutError:
+        log.error("SLAYD: vaqt tugadi (timeout)")
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+        await message.answer(
+            "⏱ Vaqt tugadi — server juda band. Iltimos 2-3 daqiqadan keyin qaytadan urinib ko'ring."
+        )
     except Exception as e:
-        await wait_msg.delete()
+        log.exception(f"SLAYD xato: {e}")
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
         await message.answer(
             f"❌ Xatolik yuz berdi: {str(e)[:200]}\n\n"
-            "Iltimos qaytadan urinib ko'ring yoki admin bilan bog'laning."
+            "Iltimos qaytadan urinib ko'ring yoki admin bilan bog'laning.",
+            disable_web_page_preview=True
         )
 
 
@@ -272,9 +310,10 @@ async def process_course_request(message: Message, user_id: int, data: dict):
     )
 
     try:
-        # AI kontent
-        course_data = await asyncio.to_thread(
-            generate_course_work_content, topic, language
+        # AI kontent (maksimal 4 daqiqa)
+        course_data = await asyncio.wait_for(
+            asyncio.to_thread(generate_course_work_content, topic, language),
+            timeout=240
         )
 
         # Titul sahifasi ma'lumotlari
@@ -304,9 +343,18 @@ async def process_course_request(message: Message, user_id: int, data: dict):
 
         await wait_msg.delete()
 
+    except asyncio.TimeoutError:
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+        await message.answer("⏱ Vaqt tugadi. Iltimos 2-3 daqiqadan keyin qaytadan urinib ko'ring.")
     except Exception as e:
-        await wait_msg.delete()
-        await message.answer(f"❌ Xatolik: {str(e)[:200]}")
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+        await message.answer(f"❌ Xatolik: {str(e)[:200]}", disable_web_page_preview=True)
 
 
 async def process_admin_action(message: Message, user_id: int, data: dict):
@@ -715,18 +763,20 @@ async def go_back(message: Message):
 async def on_startup():
     """Bot ishga tushganda"""
     await init_db()
-    print("✅ Database initialized")
+    log.info("✅ Database initialized")
 
     # AI init
     api_key = GEMINI_API_KEY or await get_setting("ai_api_key")
     if api_key:
-        model = await get_setting("ai_model") or "gemini-2.0-flash"
+        model = await get_setting("ai_model") or "gemini-2.5-flash"
         init_ai(api_key, model)
-        print(f"✅ AI initialized with model: {model}")
+        log.info(f"✅ AI initialized with model: {model}")
     else:
-        print("⚠️ AI API key not set! Use /set_api_key in bot admin panel.")
+        log.warning("⚠️ AI API key not set!")
 
-    print(f"🚀 Bot started!")
+    # Eski webhook bo'lsa o'chirish (polling to'g'ri ishlashi uchun)
+    await bot.delete_webhook(drop_pending_updates=True)
+    log.info("🚀 Bot started, polling boshlanadi...")
 
 
 async def main():
