@@ -124,6 +124,13 @@ def _generate(prompt: str, max_tokens: int = 4000) -> str:
     # Avval tanlangan model, keyin zaxiralar
     models_to_try = [_model_name] + [m for m in FALLBACK_MODELS if m != _model_name]
 
+    # O'tkazib yuboriladigan (keyingi modelni sinash kerak bo'lgan) xatolar:
+    # 429 = limit tugadi, 404 = model topilmadi, 503 = model band,
+    # 500 = server xatosi, UNAVAILABLE/overloaded = band
+    RETRYABLE = ["429", "RESOURCE_EXHAUSTED", "404", "NOT_FOUND",
+                 "503", "UNAVAILABLE", "overloaded", "high demand",
+                 "500", "INTERNAL", "DEADLINE_EXCEEDED", "504"]
+
     last_error = None
     for model in models_to_try:
         try:
@@ -137,17 +144,20 @@ def _generate(prompt: str, max_tokens: int = 4000) -> str:
             )
             if response.text:
                 return response.text
+            # Bo'sh javob — keyingi modelni sinaymiz
+            last_error = RuntimeError(f"{model}: bo'sh javob")
+            continue
         except Exception as e:
             err_str = str(e)
             last_error = e
-            # 429 (kvota) yoki 404 (model topilmadi) — keyingi modelni sinaymiz
-            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "404" in err_str or "NOT_FOUND" in err_str:
+            # Vaqtinchalik xatolar — keyingi modelni sinaymiz
+            if any(marker in err_str for marker in RETRYABLE):
                 continue
-            # Boshqa xato — to'xtatamiz
+            # Jiddiy xato (masalan noto'g'ri API kalit) — to'xtatamiz
             raise
 
     raise RuntimeError(
-        f"Barcha AI modellar band yoki limit tugagan. Keyinroq urinib ko'ring. ({str(last_error)[:100]})"
+        "Hozir barcha AI modellar band. Iltimos 1-2 daqiqadan keyin qaytadan urinib ko'ring."
     )
 
 
