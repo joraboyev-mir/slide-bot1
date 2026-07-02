@@ -15,6 +15,10 @@ import io
 import requests
 import urllib.parse
 import random
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
+log = logging.getLogger("slidebot")
 
 SLIDE_W = Inches(13.333)
 SLIDE_H = Inches(7.5)
@@ -57,10 +61,10 @@ def build_theme(theme_colors: dict | None) -> dict:
 def _fetch_ai_image(prompt: str, width: int = 1280, height: int = 720, seed: int = 0) -> bytes | None:
     """Pollinations AI orqali mavzuga mos rasm generatsiya qilish (bepul, kalitsiz)"""
     try:
-        enc = urllib.parse.quote(prompt[:300])
+        enc = urllib.parse.quote(prompt[:200])
         url = (f"https://image.pollinations.ai/prompt/{enc}"
                f"?width={width}&height={height}&nologo=true&seed={seed}")
-        resp = requests.get(url, timeout=60)
+        resp = requests.get(url, timeout=35)
         if resp.status_code == 200 and len(resp.content) > 5000:
             return resp.content
     except Exception:
@@ -411,21 +415,25 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
     slides = slide_data.get('slides', [])
     pres_title = slide_data.get('title', 'Taqdimot')
 
-    # ---- Rasmlarni yuklash (har slayd uchun) ----
-    images = []
-    for i, s in enumerate(slides):
+    # ---- Rasmlarni PARALLEL yuklash (tezlik uchun) ----
+    def _load_one(args):
+        i, s = args
         prompt = s.get('image_prompt') or (image_prompts[i] if image_prompts and i < len(image_prompts) else pres_title)
-        # professional foto uslubi
         full_prompt = f"{prompt}, professional photography, high quality, cinematic lighting, no text"
+        log.info(f"Rasm {i+1}/{len(slides)} yuklanmoqda: {prompt[:60]}")
         raw = _fetch_ai_image(full_prompt, seed=1000 + i * 7)
         if raw is None:
+            log.warning(f"Rasm {i+1} yuklanmadi — gradient fon ishlatiladi")
             raw = _fallback_gradient(1280, 720, theme)
-        images.append(raw)
-        if progress_callback:
-            try:
-                progress_callback(i + 1, len(slides))
-            except Exception:
-                pass
+        else:
+            log.info(f"Rasm {i+1} tayyor ({len(raw)} bayt)")
+        return i, raw
+
+    images = [None] * len(slides)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for i, raw in pool.map(_load_one, enumerate(slides)):
+            images[i] = raw
+    log.info(f"Barcha rasmlar tayyor: {len(images)} ta")
 
     # Rahmat slaydi uchun rasm — birinchi rasmni ishlatamiz
     thanks_img = images[0] if images else _fallback_gradient(1280, 720, theme)
