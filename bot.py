@@ -10,11 +10,12 @@ import sys
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher, types, F
+from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, WebAppInfo,
     InlineKeyboardMarkup, InlineKeyboardButton,
-    FSInputFile, Message, CallbackQuery,
+    BufferedInputFile, Message, CallbackQuery,
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -40,13 +41,13 @@ TOKEN = os.getenv("BOT_TOKEN", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
 
-# Netlify linklar (o'zgartiring!)
-SLIDES_WEBAPP_URL = os.getenv("SLIDES_WEBAPP_URL", "https://your-app.netlify.app/slides.html")
-KURS_WEBAPP_URL = os.getenv("KURS_WEBAPP_URL", "https://your-app.netlify.app/kurs.html")
-ADMIN_WEBAPP_URL = os.getenv("ADMIN_WEBAPP_URL", "https://your-app.netlify.app/admin.html")
+# Netlify linklar
+SLIDES_WEBAPP_URL = os.getenv("SLIDES_WEBAPP_URL", "https://genuine-fox-5d5d9a.netlify.app/slides.html")
+KURS_WEBAPP_URL = os.getenv("KURS_WEBAPP_URL", "https://heroic-eclair-466aa4.netlify.app/kurs.html")
+ADMIN_WEBAPP_URL = os.getenv("ADMIN_WEBAPP_URL", "https://vocal-licorice-109183.netlify.app/admin.html")
 
 # ============ BOT & DISPATCHER ============
-bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
 
@@ -220,7 +221,7 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
         )
 
         # Faylni jo'natish
-        file = FSInputFile(io.BytesIO(pptx_bytes), filename=f"slayd_{topic[:30].replace(' ', '_')}.pptx")
+        file = BufferedInputFile(pptx_bytes, filename=f"slayd_{topic[:30].replace(' ', '_')}.pptx")
         await message.answer_document(
             file,
             caption=f"✅ <b>Tayyor!</b>\n\n"
@@ -277,7 +278,7 @@ async def process_course_request(message: Message, user_id: int, data: dict):
         await add_generation_record(user_id, "course", topic, {"language": language})
 
         # Jo'natish
-        file = FSInputFile(io.BytesIO(docx_bytes), filename=f"kurs_ishi_{topic[:30].replace(' ', '_')}.docx")
+        file = BufferedInputFile(docx_bytes, filename=f"kurs_ishi_{topic[:30].replace(' ', '_')}.docx")
         await message.answer_document(
             file,
             caption=f"✅ <b>Kurs ishi tayyor!</b>\n\n"
