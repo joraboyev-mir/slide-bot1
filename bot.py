@@ -208,6 +208,11 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
             generate_slide_content, topic, slide_count, language
         )
 
+        # Muallif ismini qo'shish
+        author = data.get("author", "").strip()
+        if author:
+            slide_data["author"] = author
+
         # PPTX generatsiya (rasmlar yuklab olinadi — uzoq jarayon)
         pptx_bytes = await asyncio.to_thread(
             generate_professional_pptx, slide_data
@@ -268,10 +273,20 @@ async def process_course_request(message: Message, user_id: int, data: dict):
 
     try:
         # AI kontent
-        course_data = generate_course_work_content(topic, language)
+        course_data = await asyncio.to_thread(
+            generate_course_work_content, topic, language
+        )
+
+        # Titul sahifasi ma'lumotlari
+        course_data["author"] = data.get("author", "").strip()
+        course_data["teacher"] = data.get("teacher", "").strip()
+        course_data["university"] = data.get("university", "").strip()
+        course_data["group"] = data.get("group", "").strip()
 
         # DOCX generatsiya
-        docx_bytes = generate_professional_docx(course_data)
+        docx_bytes = await asyncio.to_thread(
+            generate_professional_docx, course_data
+        )
 
         # Statistika
         await increment_user_stats(user_id, "course")

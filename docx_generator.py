@@ -99,6 +99,14 @@ def generate_professional_docx(course_data: dict) -> bytes:
         first_line_indent=Cm(0)
     )
 
+    university = course_data.get('university', '').strip()
+    if university:
+        _add_paragraph(
+            doc, university.upper(),
+            font_size=Pt(14), bold=True, alignment=WD_ALIGN_PARAGRAPH.CENTER,
+            first_line_indent=Cm(0)
+        )
+
     doc.add_paragraph()
 
     # Kurs ishi sarlavhasi
@@ -128,13 +136,24 @@ def generate_professional_docx(course_data: dict) -> bytes:
         doc.add_paragraph()
 
     # Bajardi / Qabul qildi
+    author = course_data.get('author', '').strip()
+    teacher = course_data.get('teacher', '').strip()
+    group = course_data.get('group', '').strip()
+
+    if group:
+        _add_paragraph(
+            doc, f"Guruh: {group}",
+            font_size=Pt(14), alignment=WD_ALIGN_PARAGRAPH.RIGHT,
+            first_line_indent=Cm(0)
+        )
+
     _add_paragraph(
-        doc, "Bajardi: _________________________",
+        doc, f"Bajardi: {author}" if author else "Bajardi: _________________________",
         font_size=Pt(14), alignment=WD_ALIGN_PARAGRAPH.RIGHT,
         first_line_indent=Cm(0)
     )
     _add_paragraph(
-        doc, "Qabul qildi: ______________________",
+        doc, f"Qabul qildi: {teacher}" if teacher else "Qabul qildi: ______________________",
         font_size=Pt(14), alignment=WD_ALIGN_PARAGRAPH.RIGHT,
         first_line_indent=Cm(0)
     )

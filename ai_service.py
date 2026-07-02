@@ -16,20 +16,51 @@ def init_ai(api_key: str, model: str = "gemini-2.0-flash"):
     _model_name = model
 
 
+# Zaxira modellar — birinchisi ishlamasa keyingisi sinaladi
+FALLBACK_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+]
+
+
 def _generate(prompt: str, max_tokens: int = 4000) -> str:
-    """AI orqali matn generatsiya qilish"""
+    """AI orqali matn generatsiya qilish.
+    Agar model limiti tugagan bo'lsa (429) — avtomatik boshqa modelni sinaydi."""
     if _client is None:
         raise ValueError("AI API kaliti sozlanmagan! Admin panel orqali API kalitini qo'shing.")
 
-    response = _client.models.generate_content(
-        model=_model_name,
-        contents=prompt,
-        config={
-            "max_output_tokens": max_tokens,
-            "temperature": 0.7,
-        }
+    # Avval tanlangan model, keyin zaxiralar
+    models_to_try = [_model_name] + [m for m in FALLBACK_MODELS if m != _model_name]
+
+    last_error = None
+    for model in models_to_try:
+        try:
+            response = _client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config={
+                    "max_output_tokens": max_tokens,
+                    "temperature": 0.7,
+                }
+            )
+            if response.text:
+                return response.text
+        except Exception as e:
+            err_str = str(e)
+            last_error = e
+            # 429 (kvota) yoki 404 (model topilmadi) — keyingi modelni sinaymiz
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "404" in err_str or "NOT_FOUND" in err_str:
+                continue
+            # Boshqa xato — to'xtatamiz
+            raise
+
+    raise RuntimeError(
+        f"Barcha AI modellar band yoki limit tugagan. Keyinroq urinib ko'ring. ({str(last_error)[:100]})"
     )
-    return response.text
 
 
 def generate_slide_content(topic: str, num_slides: int = 5, language: str = "uz") -> dict:

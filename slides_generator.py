@@ -207,8 +207,15 @@ def _layout_title(prs, slide_item, theme, img_raw, pres_title):
 
     sub = slide_item.get('subtitle') or slide_item.get('content', '')[:180]
     if sub:
-        _text(slide, Inches(1), Inches(4.7), Inches(10.5), Inches(1.8),
+        _text(slide, Inches(1), Inches(4.7), Inches(10.5), Inches(1.5),
               sub, size=Pt(20), color=RGBColor(0xE8, 0xE8, 0xE8))
+
+    # Muallif ismi (pastda)
+    author = slide_item.get('author', '')
+    if author:
+        _rect(slide, Inches(1), Inches(6.55), Inches(0.08), Inches(0.5), theme["accent"])
+        _text(slide, Inches(1.25), Inches(6.55), Inches(9), Inches(0.5),
+              f"Tayyorladi: {author}", size=Pt(16), bold=True, color=WHITE)
 
 
 def _layout_image_right(prs, slide_item, theme, img_raw, num):
@@ -432,9 +439,14 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
         _layout_split_diagonal,
     ]
 
+    author = slide_data.get('author', '')
+
     for idx, item in enumerate(slides):
         img = images[idx]
         if idx == 0:
+            if author:
+                item = dict(item)
+                item['author'] = author
             _layout_title(prs, item, theme, img, pres_title)
         elif idx == len(slides) - 1 and len(slides) > 2:
             _layout_conclusion(prs, item, theme, img)
