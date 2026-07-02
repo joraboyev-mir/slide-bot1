@@ -768,7 +768,7 @@ async def on_startup():
     # AI init
     api_key = GEMINI_API_KEY or await get_setting("ai_api_key")
     if api_key:
-        model = await get_setting("ai_model") or "gemini-2.5-flash"
+        model = await get_setting("ai_model") or "gemini-2.5-flash-lite"
         init_ai(api_key, model)
         log.info(f"✅ AI initialized with model: {model}")
     else:

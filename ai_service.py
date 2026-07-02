@@ -2,7 +2,95 @@
 AI xizmati - Google Gemini API orqali kontent generatsiyasi
 """
 import json
+import re
 from google import genai
+
+
+def _clean_json_text(text: str) -> str:
+    """AI javobidan toza JSON ajratib olish"""
+    text = text.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+    # JSON boshlanishini topish
+    start = text.find('{')
+    if start > 0:
+        text = text[start:]
+    return text
+
+
+def _repair_truncated_json(text: str) -> str:
+    """Kesilgan (tugallanmagan) JSONni tuzatishga urinish"""
+    # Ochiq stringni yopish
+    in_string = False
+    escape = False
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+        if ch == '\\':
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+    if in_string:
+        text += '"'
+
+    # Ochiq qavslarni yopish
+    stack = []
+    in_string = False
+    escape = False
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+        if ch == '\\':
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in '{[':
+            stack.append(ch)
+        elif ch == '}' and stack and stack[-1] == '{':
+            stack.pop()
+        elif ch == ']' and stack and stack[-1] == '[':
+            stack.pop()
+
+    # Oxiridagi vergulni olib tashlash
+    text = re.sub(r',\s*$', '', text.strip())
+
+    for br in reversed(stack):
+        text += '}' if br == '{' else ']'
+
+    return text
+
+
+def _parse_json_safe(text: str) -> dict:
+    """JSONni xavfsiz o'qish — kesilgan bo'lsa tuzatadi"""
+    cleaned = _clean_json_text(text)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+    # Tuzatishga urinish
+    repaired = _repair_truncated_json(cleaned)
+    try:
+        return json.loads(repaired)
+    except json.JSONDecodeError:
+        pass
+    # Oxirgi to'liq elementgacha kesish (oxirgi } yoki ] gacha)
+    last_brace = max(cleaned.rfind('}'), cleaned.rfind(']'))
+    if last_brace > 0:
+        candidate = _repair_truncated_json(cleaned[:last_brace + 1])
+        return json.loads(candidate)
+    raise ValueError("AI javobini o'qib bo'lmadi. Qaytadan urinib ko'ring.")
 
 # Default API kalit (bo'sh — foydalanuvchi o'zi qo'shadi)
 _client = None
@@ -16,14 +104,14 @@ def init_ai(api_key: str, model: str = "gemini-2.0-flash"):
     _model_name = model
 
 
-# Zaxira modellar — birinchisi ishlamasa keyingisi sinaladi
+# Zaxira modellar — eng TEZLARI birinchi (flash-lite 2-3x tezroq javob beradi)
 FALLBACK_MODELS = [
-    "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
-    "gemini-flash-latest",
     "gemini-flash-lite-latest",
-    "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+    "gemini-2.0-flash",
 ]
 
 
@@ -123,15 +211,8 @@ Har bir slaydda "type": "title", "content", "bullet_list" yoki "conclusion".
 HAR BIR slaydda "image_prompt" MAJBURIY va har xil bo'lsin!
 """
 
-    result = _generate(prompt, max_tokens=8000)
-    result = result.strip()
-    if result.startswith("```json"):
-        result = result[7:]
-    if result.startswith("```"):
-        result = result[3:]
-    if result.endswith("```"):
-        result = result[:-3]
-    return json.loads(result)
+    result = _generate(prompt, max_tokens=16000)
+    return _parse_json_safe(result)
 
 
 def generate_course_work_content(topic: str, language: str = "uz") -> dict:
@@ -167,15 +248,8 @@ JAVOB FORMATI - FAQAT JSON:
 }}
 """
 
-    result = _generate(prompt, max_tokens=8000)
-    result = result.strip()
-    if result.startswith("```json"):
-        result = result[7:]
-    if result.startswith("```"):
-        result = result[3:]
-    if result.endswith("```"):
-        result = result[:-3]
-    return json.loads(result)
+    result = _generate(prompt, max_tokens=20000)
+    return _parse_json_safe(result)
 
 
 def generate_slide_images_queries(topic: str, slides: list) -> list[str]:

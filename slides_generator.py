@@ -58,13 +58,24 @@ def build_theme(theme_colors: dict | None) -> dict:
 
 # ==================== RASM YUKLASH ====================
 
-def _fetch_ai_image(prompt: str, width: int = 1280, height: int = 720, seed: int = 0) -> bytes | None:
-    """Pollinations AI orqali mavzuga mos rasm generatsiya qilish (bepul, kalitsiz)"""
+def _fetch_ai_image(prompt: str, width: int = 768, height: int = 432, seed: int = 0) -> bytes | None:
+    """Pollinations AI orqali mavzuga mos rasm generatsiya qilish (bepul, kalitsiz).
+    turbo model + kichik o'lcham = 2-3x tezroq"""
     try:
-        enc = urllib.parse.quote(prompt[:200])
+        enc = urllib.parse.quote(prompt[:150])
+        url = (f"https://image.pollinations.ai/prompt/{enc}"
+               f"?width={width}&height={height}&nologo=true&seed={seed}&model=turbo")
+        resp = requests.get(url, timeout=25)
+        if resp.status_code == 200 and len(resp.content) > 5000:
+            return resp.content
+    except Exception:
+        pass
+    # Turbo ishlamasa — oddiy rejim, oxirgi urinish
+    try:
+        enc = urllib.parse.quote(prompt[:150])
         url = (f"https://image.pollinations.ai/prompt/{enc}"
                f"?width={width}&height={height}&nologo=true&seed={seed}")
-        resp = requests.get(url, timeout=35)
+        resp = requests.get(url, timeout=20)
         if resp.status_code == 200 and len(resp.content) > 5000:
             return resp.content
     except Exception:
@@ -200,7 +211,7 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 def _layout_title(prs, slide_item, theme, img_raw, pres_title):
     """1. SARLAVHA: to'liq rasm fon + qoraytirilgan + katta sarlavha"""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    bg = _prepare_image(img_raw, 1600, 900, darken=0.55, blur=1.5)
+    bg = _prepare_image(img_raw, 1280, 720, darken=0.55, blur=1.5)
     _full_bg_image(slide, bg)
 
     # aksent chiziq
@@ -236,7 +247,7 @@ def _layout_image_right(prs, slide_item, theme, img_raw, num):
     _text(slide, Inches(0.8), Inches(1.95), Inches(6.4), Inches(5.1),
           slide_item.get('content', ''), size=Pt(15), color=RGBColor(0x33, 0x33, 0x3D))
 
-    img = _rounded_image(img_raw, 900, 1000, radius=50)
+    img = _rounded_image(img_raw, 720, 800, radius=40)
     slide.shapes.add_picture(io.BytesIO(img), Inches(7.7), Inches(0.9), Inches(5.0), Inches(5.6))
 
     _text(slide, Inches(12.5), Inches(7.05), Inches(0.6), Inches(0.35),
@@ -248,7 +259,7 @@ def _layout_image_left(prs, slide_item, theme, img_raw, num):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     _rect(slide, 0, 0, SLIDE_W, SLIDE_H, theme["dark"])
 
-    img = _prepare_image(img_raw, 800, 1000)
+    img = _prepare_image(img_raw, 640, 800)
     slide.shapes.add_picture(io.BytesIO(img), 0, 0, Inches(5.6), SLIDE_H)
 
     # rasm ustidan o'ngga o'tuvchi soyali panel
@@ -269,7 +280,7 @@ def _layout_image_left(prs, slide_item, theme, img_raw, num):
 def _layout_full_image(prs, slide_item, theme, img_raw, num):
     """4. TO'LIQ RASM FON + pastda matn paneli"""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    bg = _prepare_image(img_raw, 1600, 900, darken=0.25)
+    bg = _prepare_image(img_raw, 1280, 720, darken=0.25)
     _full_bg_image(slide, bg)
 
     # pastki qorong'i panel
@@ -291,7 +302,7 @@ def _layout_bullets(prs, slide_item, theme, img_raw, num):
     _rect(slide, 0, 0, SLIDE_W, SLIDE_H, RGBColor(0xF5, 0xF7, 0xFA))
 
     # yuqori banner rasm
-    banner = _prepare_image(img_raw, 1600, 320, darken=0.45)
+    banner = _prepare_image(img_raw, 1280, 256, darken=0.45)
     slide.shapes.add_picture(io.BytesIO(banner), 0, 0, SLIDE_W, Inches(1.9))
 
     _text(slide, Inches(0.8), Inches(0.5), Inches(11.7), Inches(1.0),
@@ -342,7 +353,7 @@ def _layout_split_diagonal(prs, slide_item, theme, img_raw, num):
     _rect(slide, 0, 0, SLIDE_W, SLIDE_H, WHITE)
 
     # yuqori yarmida keng rasm
-    img = _prepare_image(img_raw, 1600, 560, darken=0.15)
+    img = _prepare_image(img_raw, 1280, 448, darken=0.15)
     slide.shapes.add_picture(io.BytesIO(img), 0, 0, SLIDE_W, Inches(3.3))
 
     # rasm ustiga chapdan rangli sarlavha paneli
@@ -366,7 +377,7 @@ def _layout_split_diagonal(prs, slide_item, theme, img_raw, num):
 def _layout_conclusion(prs, slide_item, theme, img_raw):
     """7. XULOSA: to'liq rasm + markazda matn"""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    bg = _prepare_image(img_raw, 1600, 900, darken=0.6, blur=2.0)
+    bg = _prepare_image(img_raw, 1280, 720, darken=0.6, blur=2.0)
     _full_bg_image(slide, bg)
 
     _rect(slide, Inches(5.85), Inches(1.15), Inches(1.6), Pt(6), theme["accent"])
@@ -381,7 +392,7 @@ def _layout_conclusion(prs, slide_item, theme, img_raw):
 def _layout_thanks(prs, theme, img_raw, pres_title):
     """8. RAHMAT slaydi"""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    bg = _prepare_image(img_raw, 1600, 900, darken=0.65, blur=3.0)
+    bg = _prepare_image(img_raw, 1280, 720, darken=0.65, blur=3.0)
     _full_bg_image(slide, bg)
 
     _text(slide, Inches(1.5), Inches(2.6), Inches(10.3), Inches(1.4),
@@ -430,7 +441,8 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
         return i, raw
 
     images = [None] * len(slides)
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    # Hamma rasmlarni BIR VAQTDA parallel yuklash (maksimal tezlik)
+    with ThreadPoolExecutor(max_workers=min(len(slides), 10)) as pool:
         for i, raw in pool.map(_load_one, enumerate(slides)):
             images[i] = raw
     log.info(f"Barcha rasmlar tayyor: {len(images)} ta")

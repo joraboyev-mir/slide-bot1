@@ -50,7 +50,7 @@ async def init_db():
 
         # Default sozlamalar
         default_settings = [
-            ('ai_model', 'gemini-2.5-flash'),
+            ('ai_model', 'gemini-2.5-flash-lite'),
             ('ai_api_key', ''),
             ('max_slides_per_day', '10'),
             ('max_courses_per_day', '5'),
