@@ -705,6 +705,50 @@ async def my_stats(message: Message):
     )
 
 
+# ============ YASHIRIN KOMANDA (menyuda ko'rinmaydi) ============
+@dp.message(Command("yaratuvchi"))
+async def yaratuvchi_command(message: Message):
+    """Yashirin komanda — bot yaratuvchisi"""
+    await message.answer("Jo'raboyev Mirzohid")
+
+
+# ============ 2-ADMINNI BOSHQARISH (ID yashirin) ============
+@dp.message(Command("admin2"))
+async def set_admin2_command(message: Message):
+    """2-admin ID sini o'zgartirish: /admin2 YANGI_ID
+    Faqat adminlar ishlatadi. ID hech qayerda ko'rsatilmaydi."""
+    if not message.from_user:
+        return
+
+    user_id = message.from_user.id
+    if user_id not in ADMIN_IDS and await get_setting(f"admin_{user_id}") != "1":
+        return  # begona uchun jimgina e'tiborsiz (komanda mavjudligi ham bilinmasin)
+
+    parts = (message.text or "").split()
+    if len(parts) < 2 or not parts[1].strip().isdigit():
+        await message.answer(
+            "ℹ️ 2-adminni o'zgartirish:\n"
+            "<code>/admin2 YANGI_ID</code>\n\n"
+            "Hozirgi 2-admin: 🔒 (yashirin)"
+        )
+        return
+
+    new_id = parts[1].strip()
+
+    # Eski 2-adminning huquqini olib tashlash
+    old_id = await get_setting("admin2_id")
+    if old_id and old_id != new_id and int(old_id) not in ADMIN_IDS:
+        await set_setting(f"admin_{old_id}", "0")
+
+    # Yangi 2-adminni o'rnatish
+    await set_setting("admin2_id", new_id)
+    await set_setting(f"admin_{new_id}", "1")
+
+    # ID ko'rsatilmaydi — faqat tasdiqlash
+    await message.answer("✅ 2-admin muvaffaqiyatli yangilandi. 🔒")
+    log.info("2-admin yangilandi (ID yashirin)")
+
+
 @dp.message(F.text == "ℹ️ Yordam")
 async def help_command(message: Message):
     """Yordam"""
@@ -790,10 +834,15 @@ async def admin_users_list(callback: CallbackQuery):
         await callback.message.edit_text("👥 Hali foydalanuvchilar yo'q.")
         return
 
+    # 2-admin ID sini ro'yxatda yashirish
+    admin2_id = await get_setting("admin2_id") or ""
+
     text = f"👥 <b>Foydalanuvchilar ({len(users)} ta):</b>\n\n"
     for u in users[:20]:
         name = u.get('first_name', 'Noma\'lum') or 'Noma\'lum'
-        text += f"• <code>{u['user_id']}</code> — {name} | 📑{u.get('total_slides', 0)} 📝{u.get('total_courses', 0)}\n"
+        uid = str(u['user_id'])
+        shown_id = "🔒 yashirin" if (uid == admin2_id and int(admin2_id) not in ADMIN_IDS) else uid
+        text += f"• <code>{shown_id}</code> — {name} | 📑{u.get('total_slides', 0)} 📝{u.get('total_courses', 0)}\n"
 
     await callback.message.edit_text(text, reply_markup=await admin_inline_keyboard())
     await callback.answer()
@@ -1033,6 +1082,15 @@ async def on_startup():
     if old_welcome and "professional <b>Slayd va Kurs ishi</b> yaratuvchi botman" in old_welcome:
         await set_setting("welcome_message", "")
         log.info("Eski welcome xabari tozalandi — yangi aksiya matni ishlaydi")
+
+    # 2-ADMIN: birinchi ishga tushishda 1-admin ID si bilan to'ldiriladi
+    # Keyin /admin2 YANGI_ID komandasi bilan o'zgartirish mumkin
+    admin2 = await get_setting("admin2_id")
+    if not admin2 and ADMIN_IDS:
+        default_admin2 = str(ADMIN_IDS[0])
+        await set_setting("admin2_id", default_admin2)
+        await set_setting(f"admin_{default_admin2}", "1")
+        log.info("2-admin o'rnatildi (ID yashirin)")
 
     # Eski webhook bo'lsa o'chirish (polling to'g'ri ishlashi uchun)
     await bot.delete_webhook(drop_pending_updates=True)
