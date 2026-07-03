@@ -59,6 +59,13 @@ ADMIN_WEBAPP_URL = os.getenv("ADMIN_WEBAPP_URL", "https://vocal-licorice-109183.
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
+# Bir vaqtda maksimal 3 ta generatsiya — server ortiqcha yuklanmasligi uchun.
+# Qolganlar navbatda kutadi (bot qotib qolmaydi, boshqa xabarlarga javob beraveradi)
+GENERATION_SEMAPHORE = asyncio.Semaphore(3)
+
+# Bitta foydalanuvchi bir vaqtda faqat 1 ta generatsiya qila oladi
+ACTIVE_USERS: set = set()
+
 
 # ============ KLAVIATURALAR ============
 def main_keyboard():
@@ -189,6 +196,25 @@ async def handle_web_app_data(message: Message):
 
     data_type = data.get("type", "")
     log.info(f"WebApp so'rov keldi: user={user_id}, type={data_type}, data={str(data)[:200]}")
+
+    if data_type in ("slide", "course"):
+        # Foydalanuvchi allaqachon generatsiya qilyaptimi?
+        if user_id in ACTIVE_USERS:
+            await message.answer(
+                "⏳ Sizning avvalgi so'rovingiz hali tayyorlanmoqda. "
+                "Iltimos u tugashini kuting."
+            )
+            return
+        ACTIVE_USERS.add(user_id)
+        try:
+            async with GENERATION_SEMAPHORE:
+                if data_type == "slide":
+                    await process_slide_request(message, user_id, data)
+                else:
+                    await process_course_request(message, user_id, data)
+        finally:
+            ACTIVE_USERS.discard(user_id)
+        return
 
     if data_type == "slide":
         await process_slide_request(message, user_id, data)

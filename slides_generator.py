@@ -107,8 +107,8 @@ def _fetch_ai_image(prompt: str, width: int = 1024, height: int = 576, seed: int
             return resp.content
     except Exception:
         pass
-    # 3-urinish: LoremFlickr — haqiqiy stok foto (deyarli har doim ishlaydi)
-    return _fetch_stock_photo(prompt, width, height, seed)
+    # Stok foto ishlatmaymiz — mavzuga aloqasiz rasm chiqib qoladi
+    return None
 
 
 def _fallback_gradient(width: int, height: int, theme: dict) -> bytes:
@@ -435,6 +435,149 @@ def _layout_split_diagonal(prs, slide_item, theme, img_raw, num, img2_raw=None):
           str(num), size=Pt(12), color=theme["primary"], align=PP_ALIGN.RIGHT)
 
 
+def _layout_text_accent(prs, slide_item, theme, num):
+    """T1. MATN: oq fon + chapda katta rangli panel"""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, WHITE)
+
+    # Chapda vertikal rangli panel
+    _rect(slide, 0, 0, Inches(3.6), SLIDE_H, theme["primary"])
+    _rect(slide, Inches(3.6), 0, Inches(0.12), SLIDE_H, theme["accent"])
+
+    # Panel ichida sarlavha
+    _text(slide, Inches(0.5), Inches(1.2), Inches(2.8), Inches(4.5),
+          slide_item.get('title', ''), size=Pt(26), bold=True, color=WHITE)
+
+    # Katta raqam paneli pastida
+    _text(slide, Inches(0.5), Inches(6.3), Inches(2.8), Inches(0.8),
+          f"{num:02d}", size=Pt(40), bold=True, color=theme["accent"])
+
+    # O'ngda matn
+    _text(slide, Inches(4.3), Inches(1.0), Inches(8.3), Inches(5.2),
+          slide_item.get('content', ''), size=Pt(16), color=RGBColor(0x2A, 0x2A, 0x35),
+          line_spacing=1.35)
+
+    sub = slide_item.get('subtitle', '')
+    if sub:
+        _rect(slide, Inches(4.3), Inches(6.35), Inches(8.3), Pt(2), theme["accent"])
+        _text(slide, Inches(4.3), Inches(6.5), Inches(8.3), Inches(0.7),
+              "💡 " + sub, size=Pt(12), color=theme["primary"])
+
+
+def _layout_text_dark(prs, slide_item, theme, num):
+    """T2. MATN: to'q fon + markazlashgan kontent, aksent chiziqlar"""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, theme["dark"])
+
+    # Yuqori va pastki aksent chiziqlar
+    _rect(slide, 0, 0, SLIDE_W, Pt(6), theme["accent"])
+    _rect(slide, 0, SLIDE_H - Pt(6), SLIDE_W, Pt(6), theme["accent"])
+
+    # Sarlavha
+    _text(slide, Inches(1.2), Inches(0.7), Inches(10.9), Inches(1.2),
+          slide_item.get('title', ''), size=Pt(32), bold=True, color=WHITE)
+    _rect(slide, Inches(1.2), Inches(1.8), Inches(2.4), Pt(4), theme["accent"])
+
+    # Matn — yarim shaffof panel ichida
+    _rect(slide, Inches(1.0), Inches(2.3), Inches(11.3), Inches(4.4),
+          theme["primary"], transparency=55)
+    _text(slide, Inches(1.5), Inches(2.6), Inches(10.3), Inches(3.8),
+          slide_item.get('content', ''), size=Pt(16),
+          color=RGBColor(0xEC, 0xEE, 0xF4), line_spacing=1.35)
+
+    sub = slide_item.get('subtitle', '')
+    if sub:
+        _text(slide, Inches(1.2), Inches(6.9), Inches(10.9), Inches(0.5),
+              "💡 " + sub, size=Pt(12), color=theme["accent"])
+
+    _text(slide, Inches(12.3), Inches(7.0), Inches(0.8), Inches(0.4),
+          str(num), size=Pt(12), color=WHITE, align=PP_ALIGN.RIGHT)
+
+
+def _layout_text_split(prs, slide_item, theme, num):
+    """T3. MATN: yuqorida rangli sarlavha bloki + pastda 2 ustunli matn"""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, RGBColor(0xF6, 0xF8, 0xFB))
+
+    # Yuqori rangli blok
+    _rect(slide, 0, 0, SLIDE_W, Inches(2.0), theme["primary"])
+    _rect(slide, 0, Inches(2.0), SLIDE_W, Pt(5), theme["accent"])
+    _text(slide, Inches(0.9), Inches(0.55), Inches(11.5), Inches(1.1),
+          slide_item.get('title', ''), size=Pt(30), bold=True, color=WHITE)
+
+    # Matnni 2 ustunga bo'lish
+    content = slide_item.get('content', '')
+    sentences = [s.strip() for s in content.replace('!', '.').replace('?', '.').split('.') if s.strip()]
+    half = (len(sentences) + 1) // 2
+    col1 = '. '.join(sentences[:half]) + ('.' if sentences[:half] else '')
+    col2 = '. '.join(sentences[half:]) + ('.' if sentences[half:] else '')
+
+    _text(slide, Inches(0.9), Inches(2.5), Inches(5.7), Inches(4.2),
+          col1, size=Pt(14.5), color=RGBColor(0x2A, 0x2A, 0x35), line_spacing=1.3)
+
+    # Ustunlar orasida vertikal chiziq
+    _rect(slide, Inches(6.85), Inches(2.6), Pt(2.5), Inches(3.9), theme["accent"])
+
+    _text(slide, Inches(7.15), Inches(2.5), Inches(5.3), Inches(4.2),
+          col2, size=Pt(14.5), color=RGBColor(0x2A, 0x2A, 0x35), line_spacing=1.3)
+
+    sub = slide_item.get('subtitle', '')
+    if sub:
+        _rect(slide, Inches(0.9), Inches(6.8), Inches(11.5), Inches(0.55), theme["primary"], transparency=88)
+        _text(slide, Inches(1.1), Inches(6.85), Inches(11.1), Inches(0.45),
+              "💡 " + sub, size=Pt(11.5), color=theme["primary"])
+
+    _text(slide, Inches(12.3), Inches(7.0), Inches(0.8), Inches(0.4),
+          str(num), size=Pt(12), color=theme["primary"], align=PP_ALIGN.RIGHT)
+
+
+def _layout_bullets_noimg(prs, slide_item, theme, num):
+    """T4. NUQTALI KARTALAR — rasmsiz, rangli sarlavha bilan"""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, RGBColor(0xF5, 0xF7, 0xFA))
+
+    # Yuqori rangli banner (rasm o'rniga)
+    _rect(slide, 0, 0, SLIDE_W, Inches(1.6), theme["dark"])
+    _rect(slide, 0, Inches(1.6), SLIDE_W, Pt(5), theme["accent"])
+    _text(slide, Inches(0.8), Inches(0.4), Inches(11.7), Inches(1.0),
+          slide_item.get('title', ''), size=Pt(30), bold=True, color=WHITE)
+
+    items = slide_item.get('bullet_points') or []
+    if not items:
+        items = [s.strip() for s in slide_item.get('content', '').split('.') if s.strip()][:6]
+    items = [it.strip().lstrip('-•* ') for it in items if it.strip()][:6]
+
+    top0 = Inches(2.0)
+    card_w = Inches(6.0)
+    card_h = Inches(1.55)
+    gap = Inches(0.25)
+    for i, item in enumerate(items):
+        col = i % 2
+        row = i // 2
+        left = Inches(0.5) + col * (card_w + gap)
+        top = top0 + row * (card_h + gap)
+        card = _rect(slide, left, top, card_w, card_h, WHITE)
+        card.line.color.rgb = RGBColor(0xE0, 0xE4, 0xEA)
+        card.line.width = Pt(1)
+        circ = slide.shapes.add_shape(MSO_SHAPE.OVAL, left + Inches(0.18),
+                                      top + (card_h - Inches(0.55)) / 2, Inches(0.55), Inches(0.55))
+        circ.fill.solid()
+        circ.fill.fore_color.rgb = theme["accent"] if i % 2 == 0 else theme["primary"]
+        circ.line.fill.background()
+        tfc = circ.text_frame
+        pc = tfc.paragraphs[0]
+        pc.alignment = PP_ALIGN.CENTER
+        rc = pc.add_run()
+        rc.text = str(i + 1)
+        _set_font(rc, size=Pt(16), bold=True, color=WHITE)
+        _text(slide, left + Inches(0.95), top + Inches(0.12), card_w - Inches(1.1),
+              card_h - Inches(0.24), item, size=Pt(12.5),
+              color=RGBColor(0x2A, 0x2A, 0x35), anchor='ctr')
+
+    _text(slide, Inches(12.3), Inches(7.0), Inches(0.8), Inches(0.4),
+          str(num), size=Pt(12), color=theme["primary"], align=PP_ALIGN.RIGHT)
+
+
 def _layout_conclusion(prs, slide_item, theme, img_raw):
     """7. XULOSA: to'liq rasm + markazda matn"""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
@@ -494,47 +637,39 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
         full_prompt = (f"{prompt}, ultra realistic professional stock photography, 4k quality, "
                        f"sharp focus, cinematic lighting, detailed, "
                        f"no text, no watermark, no cartoon, no illustration")
-        # 12 tadan ko'p slaydda flux o'rniga turbo (tezlik uchun)
-        fast_mode = len(slides) > 12
-        raw = _fetch_ai_image(full_prompt, seed=1000 + i * 7, fast=fast_mode)
+        raw = _fetch_ai_image(full_prompt, seed=1000 + i * 7)
         if raw is None:
-            log.warning(f"Rasm {i+1}: AI ham, stok ham ishlamadi")
+            log.warning(f"Rasm (slayd {i+1}) yuklanmadi")
         else:
-            log.info(f"Rasm {i+1}/{len(slides)} tayyor")
+            log.info(f"Rasm (slayd {i+1}) tayyor")
         return i, raw
 
-    images = [None] * len(slides)
-    # ASOSIY rasmlar: 3 tadan parallel (Pollinations limitiga tushmaslik uchun!)
-    # Ko'p parallel so'rov yuborsak Pollinations rad etadi va rasmlar chiqmaydi
+    # ===== QAYSI SLAYDLARGA RASM KERAK? =====
+    # Titul (0) va Xulosa (oxirgi) — har doim rasm foni
+    # O'rta slaydlarning faqat 1/3 qismi rasmli, qolganlari matn dizaynida
+    n = len(slides)
+    image_indices = {0}
+    if n > 2:
+        image_indices.add(n - 1)
+        # har 3-o'rta slaydga rasm: 1, 4, 7, 10...
+        for i in range(1, n - 1):
+            if (i - 1) % 3 == 0:
+                image_indices.add(i)
+
+    # Faqat kerakli rasmlarni yuklaymiz (mavzuga mos, AI yaratgan)
+    to_load = [(i, slides[i]) for i in sorted(image_indices)]
+    images = [None] * n
     with ThreadPoolExecutor(max_workers=3) as pool:
-        for i, raw in pool.map(_load_one, enumerate(slides)):
+        for i, raw in pool.map(_load_one, to_load):
             images[i] = raw
-    real_count = sum(1 for im in images if im is not None)
-    log.info(f"Asosiy rasmlar: {real_count}/{len(slides)} ta yuklandi")
 
-    # Yuklanmaganlarga: real stok foto → gradient
-    for i in range(len(slides)):
+    # Yuklanmagan (kerakli) rasmlarga gradient zaxira
+    for i in image_indices:
         if images[i] is None:
-            prompt = slides[i].get('image_prompt') or pres_title
-            images[i] = _fetch_stock_photo(prompt, seed=i * 3 + 1) or _fallback_gradient(1024, 576, theme)
+            images[i] = _fallback_gradient(1024, 576, theme)
 
-    # ---- QO'SHIMCHA (ikkinchi) rasmlar — real stok fotolardan (tez va ishonchli) ----
-    def _load_secondary(args):
-        i, s = args
-        prompt = s.get('image_prompt') or pres_title
-        raw = _fetch_stock_photo(prompt, seed=5000 + i * 13)
-        if raw is None:
-            raw = _fallback_gradient(1024, 576, theme)
-        return i, raw
-
-    images2 = {}
-    middle = [(i, s) for i, s in enumerate(slides) if 0 < i < len(slides) - 1]
-    if middle:
-        with ThreadPoolExecutor(max_workers=8) as pool:
-            for i, raw in pool.map(_load_secondary, middle):
-                if raw:
-                    images2[i] = raw
-    log.info(f"Qo'shimcha rasmlar tayyor: {len(images2)} ta")
+    real_count = sum(1 for i in image_indices if images[i] is not None)
+    log.info(f"Rasmlar: {real_count}/{len(image_indices)} ta yuklandi (jami {n} slaydning 1/3 qismi)")
 
     # Rahmat slaydi uchun rasm — birinchi rasmni ishlatamiz
     thanks_img = images[0] if images else _fallback_gradient(1280, 720, theme)
@@ -550,9 +685,13 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
 
     author = slide_data.get('author', '')
 
+    img_layout_i = 0   # rasmli layoutlar hisoblagichi
+    txt_layout_i = 0   # matnli layoutlar hisoblagichi
+
     for idx, item in enumerate(slides):
         img = images[idx]
-        img2 = images2.get(idx)
+        has_bullets = item.get('bullet_points') and len(item['bullet_points']) >= 3
+
         if idx == 0:
             if author:
                 item = dict(item)
@@ -560,21 +699,30 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
             _layout_title(prs, item, theme, img, pres_title)
         elif idx == len(slides) - 1 and len(slides) > 2:
             _layout_conclusion(prs, item, theme, img)
-        else:
-            # bullet_points bo'lsa — bullets layout, aks holda rotatsiya
-            if item.get('bullet_points') and len(item['bullet_points']) >= 3:
+        elif img is not None:
+            # ===== RASMLI slayd (har 3-slayd) =====
+            if has_bullets:
                 item = dict(item)
-                item['_img2'] = img2
+                item['_img2'] = None
                 _layout_bullets(prs, item, theme, img, idx + 1)
             else:
-                # 2-rasmni qo'llab-quvvatlaydigan layoutlar rotatsiyasi
-                non_bullet = [_layout_image_right, _layout_full_image,
-                              _layout_image_left, _layout_split_diagonal]
-                layout = non_bullet[(idx - 1) % len(non_bullet)]
+                img_layouts = [_layout_image_right, _layout_full_image,
+                               _layout_image_left, _layout_split_diagonal]
+                layout = img_layouts[img_layout_i % len(img_layouts)]
+                img_layout_i += 1
                 if layout is _layout_full_image:
                     layout(prs, item, theme, img, idx + 1)
                 else:
-                    layout(prs, item, theme, img, idx + 1, img2_raw=img2)
+                    layout(prs, item, theme, img, idx + 1)
+        else:
+            # ===== MATNLI slayd (rasmsiz, chiroyli dizayn) =====
+            if has_bullets:
+                _layout_bullets_noimg(prs, item, theme, idx + 1)
+            else:
+                txt_layouts = [_layout_text_accent, _layout_text_dark, _layout_text_split]
+                layout = txt_layouts[txt_layout_i % len(txt_layouts)]
+                txt_layout_i += 1
+                layout(prs, item, theme, idx + 1)
 
     _layout_thanks(prs, theme, thanks_img, pres_title)
 
