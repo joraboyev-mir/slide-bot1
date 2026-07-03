@@ -138,15 +138,42 @@ FALLBACK_MODELS = [
     "gemini-2.0-flash",
 ]
 
+# Tarif bo'yicha model tanlash: qimmatroq tarif = kuchliroq model
+TARIFF_MODELS = {
+    "standart": ["gemini-2.0-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash"],
+    "premium": ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"],
+    "premium_plus": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-flash-latest"],
+}
 
-def _generate(prompt: str, max_tokens: int = 4000) -> str:
+# Tarif bo'yicha qo'shimcha sifat ko'rsatmalari
+TARIFF_PROMPT_EXTRAS = {
+    "standart": "",
+    "premium": """
+===== PREMIUM SIFAT TALABLARI =====
+- Har bir slaydda kamida 2-3 ta ANIQ ilmiy termin ishlating va ularni qisqacha izohlang
+- Statistik raqamlar, foizlar, yillarni ko'proq kiriting
+- Matn akademik uslubda, ammo tushunarli bo'lsin""",
+    "premium_plus": """
+===== YUQORI SIFATLI PREMIUM TALABLARI =====
+- Har bir slaydda 3-4 ta chuqur ilmiy termin, ta'rif va izohlar bilan
+- Xalqaro tadqiqotlar, olimlar nomlari, manba yillarini kiriting
+- Taqqoslash, tahlil va tanqidiy fikrlash elementlari bo'lsin
+- Har slaydda kamida 80-150 so'z, mukammal akademik uslub
+- Eng so'nggi tendensiyalar va kelajak prognozlarini qo'shing""",
+}
+
+
+def _generate(prompt: str, max_tokens: int = 4000, preferred_models: list = None) -> str:
     """AI orqali matn generatsiya qilish.
     Agar model limiti tugagan bo'lsa (429) — avtomatik boshqa modelni sinaydi."""
     if _client is None:
         raise ValueError("AI API kaliti sozlanmagan! Admin panel orqali API kalitini qo'shing.")
 
-    # Avval tanlangan model, keyin zaxiralar
-    models_to_try = [_model_name] + [m for m in FALLBACK_MODELS if m != _model_name]
+    # Tarif modellari > tanlangan model > zaxiralar
+    if preferred_models:
+        models_to_try = list(preferred_models) + [m for m in FALLBACK_MODELS if m not in preferred_models]
+    else:
+        models_to_try = [_model_name] + [m for m in FALLBACK_MODELS if m != _model_name]
 
     # O'tkazib yuboriladigan (keyingi modelni sinash kerak bo'lgan) xatolar:
     # 429 = limit tugadi, 404 = model topilmadi, 503 = model band,
@@ -185,9 +212,11 @@ def _generate(prompt: str, max_tokens: int = 4000) -> str:
     )
 
 
-def generate_slide_content(topic: str, num_slides: int = 5, language: str = "uz") -> dict:
+def generate_slide_content(topic: str, num_slides: int = 5, language: str = "uz",
+                            tariff: str = "standart") -> dict:
     """Slayd uchun kontent generatsiya qilish - professional va uzun.
-    AI o'zi mavzuga mos rang palitrasini va har bir slayd uchun rasm promptini tanlaydi."""
+    AI o'zi mavzuga mos rang palitrasini va har bir slayd uchun rasm promptini tanlaydi.
+    tariff: standart / premium / premium_plus — sifat darajasi"""
     prompt = f"""Siz professional taqdimot dizayneri va shu sohaning chuqur bilimli mutaxassisisiz. Quyidagi mavzu bo'yicha {num_slides} ta slayd uchun TO'LIQ va UZUN kontent yarating.
 
 MAVZU: {topic}
@@ -229,11 +258,16 @@ Mavzuga eng mos keladigan professional rang palitrasini tanlang (HEX formatda):
   hospital". Har bir slaydda HAR XIL rasm prompti bo'lsin!
 - Qo'shimcha fakt yoki statistika ("subtitle" maydonida)
 
-MUHIM STRUKTURA:
-- 1-slayd: Sarlavha slaydi — mavzu nomi va qisqacha kirish
-- O'rta slaydlar: mavzuning TURLI jihatlari (tarixi, turlari, ahamiyati, muammolari, statistikasi, kelajagi...)
-- Kamida 1-2 ta slaydda "bullet_points" massivi bo'lsin (5-6 ta punkt)
-- Oxirgi slayd: Xulosa
+MUHIM STRUKTURA — TAQDIMOT STANDARTI BO'YICHA ANIQ SHU TARTIBDA:
+- 1-slayd: Sarlavha (titul) — mavzu nomi va qisqacha kirish
+- 2-slayd: REJA — taqdimotda ko'riladigan bo'limlar ro'yxati ("bullet_points" bilan, type="bullet_list", title="Reja")
+- 3-slayd: Kirish — mavzuga umumiy kirish, dolzarbligi
+- O'rta slaydlar: mavzuning TURLI jihatlari MANTIQIY KETMA-KETLIKDA
+  (ta'rif/tushuncha → tarixi → turlari/tuzilishi → ahamiyati → statistika → muammolari → kelajagi)
+- Kamida 2-3 ta slaydda "bullet_points" massivi bo'lsin (5-6 ta punkt)
+- Oxirgi slayd: Xulosa (type="conclusion")
+
+QAT'IY TALAB: ANIQ {num_slides} TA slayd yozing — kam ham, ko'p ham emas!
 
 Kontent professional, ilmiy uslubda va boy bo'lishi kerak.
 
@@ -261,10 +295,12 @@ JAVOB FORMATI - FAQAT JSON:
 Har bir slaydda "type": "title", "content", "bullet_list" yoki "conclusion".
 "bullet_list" turida "bullet_points" massivini to'ldiring (5-6 ta punkt).
 HAR BIR slaydda "image_prompt" MAJBURIY va har xil bo'lsin!
+{TARIFF_PROMPT_EXTRAS.get(tariff, "")}
 """
 
     # 25 tagacha slayd uchun katta limit
-    result = _generate(prompt, max_tokens=40000)
+    models = TARIFF_MODELS.get(tariff)
+    result = _generate(prompt, max_tokens=40000, preferred_models=models)
     data = _parse_json_safe(result)
 
     # ===== SLAYDLAR SONINI KAFOLATLASH =====
@@ -291,7 +327,7 @@ faktlar bilan), "subtitle" (qiziq fakt), "bullet_points" (bullet_list uchun 5-6 
 JAVOB — FAQAT JSON MASSIV:
 [{{"type": "content", "title": "...", "content": "...", "subtitle": "...", "bullet_points": [], "image_prompt": "..."}}]"""
 
-        extra_result = _generate(extra_prompt, max_tokens=30000)
+        extra_result = _generate(extra_prompt, max_tokens=30000, preferred_models=models)
         extra_slides = _parse_json_array_safe(extra_result)
         if extra_slides:
             # Xulosa slaydidan OLDIN qo'shamiz
@@ -305,7 +341,8 @@ JAVOB — FAQAT JSON MASSIV:
     return data
 
 
-def generate_course_work_content(topic: str, language: str = "uz") -> dict:
+def generate_course_work_content(topic: str, language: str = "uz",
+                                  tariff: str = "standart") -> dict:
     """Kurs ishi uchun kontent generatsiya qilish"""
     prompt = f"""Siz akademik kurs ishi yozuvchi professor va shu sohaning chuqur mutaxassisisiz. Quyidagi mavzu bo'yicha TO'LIQ kurs ishi kontentini yarating.
 
@@ -349,7 +386,8 @@ JAVOB FORMATI - FAQAT JSON:
 }}
 """
 
-    result = _generate(prompt, max_tokens=20000)
+    result = _generate(prompt, max_tokens=20000,
+                       preferred_models=TARIFF_MODELS.get(tariff))
     return _parse_json_safe(result)
 
 

@@ -18,6 +18,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("slidebot")
 
+import uuid
+
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command, CommandStart
@@ -25,6 +27,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, WebAppInfo,
     InlineKeyboardMarkup, InlineKeyboardButton,
     BufferedInputFile, Message, CallbackQuery,
+    LabeledPrice, PreCheckoutQuery,
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -65,6 +68,34 @@ GENERATION_SEMAPHORE = asyncio.Semaphore(3)
 
 # Bitta foydalanuvchi bir vaqtda faqat 1 ta generatsiya qila oladi
 ACTIVE_USERS: set = set()
+
+# ============ TO'LOV TIZIMI ============
+# BotFather → Bot Settings → Payments orqali Click/Payme ulang va tokenni oling
+PAYMENT_PROVIDER_TOKEN = os.getenv("PAYMENT_PROVIDER_TOKEN", "")
+
+TARIFFS = {
+    "standart": {
+        "name": "Standart",
+        "price": 3000,
+        "stars": "⭐️",
+        "desc": "2024-yilgacha bo'lgan internet ma'lumotlari asosida. Oddiy mavzular uchun.",
+    },
+    "premium": {
+        "name": "Premium",
+        "price": 5000,
+        "stars": "⭐️⭐️",
+        "desc": "Matn sifati yaxshilangan, 2025-yilgacha ma'lumotlar. Ilmiy terminlarga boy.",
+    },
+    "premium_plus": {
+        "name": "Yuqori Sifatli Premium",
+        "price": 7000,
+        "stars": "⭐️⭐️⭐️",
+        "desc": "Eng yuqori sifat: chuqur tahlil, boy ilmiy kontent, eng kuchli AI model.",
+    },
+}
+
+# To'lov kutayotgan buyurtmalar: order_id -> {"user_id":..., "data":...}
+PENDING_ORDERS: dict = {}
 
 
 # ============ KLAVIATURALAR ============
@@ -205,6 +236,77 @@ async def handle_web_app_data(message: Message):
                 "Iltimos u tugashini kuting."
             )
             return
+
+        # ===== ADMIN — HAMMA NARSA BEPUL, cheklovsiz =====
+        is_admin = user_id in ADMIN_IDS or await get_setting(f"admin_{user_id}") == "1"
+        if is_admin:
+            ACTIVE_USERS.add(user_id)
+            try:
+                async with GENERATION_SEMAPHORE:
+                    if data_type == "slide":
+                        await process_slide_request(message, user_id, data)
+                    else:
+                        await process_course_request(message, user_id, data)
+            finally:
+                ACTIVE_USERS.discard(user_id)
+            return
+
+        # ===== BIRINCHI GENERATSIYA — BEPUL va PREMIUM SIFATDA =====
+        user_rec = await get_user(user_id)
+        is_first_time = (user_rec is not None
+                         and user_rec.get("total_slides", 0) == 0
+                         and user_rec.get("total_courses", 0) == 0)
+        if is_first_time:
+            data["tariff"] = "premium"  # sovg'a: premium sifat
+            await message.answer(
+                "🎁 <b>Birinchi buyurtmangiz — BEPUL va Premium sifatda!</b>\n\n"
+                "Keyingi buyurtmalar tanlangan tarif bo'yicha to'lovli bo'ladi."
+            )
+            ACTIVE_USERS.add(user_id)
+            try:
+                async with GENERATION_SEMAPHORE:
+                    if data_type == "slide":
+                        await process_slide_request(message, user_id, data)
+                    else:
+                        await process_course_request(message, user_id, data)
+            finally:
+                ACTIVE_USERS.discard(user_id)
+            return
+
+        # ===== TO'LOV BOSQICHI =====
+        # (Adminlar bu yergacha yetib kelmaydi — ular yuqorida bepul o'tadi)
+        if PAYMENT_PROVIDER_TOKEN:
+            tariff_key = data.get("tariff", "standart")
+            tariff = TARIFFS.get(tariff_key, TARIFFS["standart"])
+            order_id = uuid.uuid4().hex[:16]
+            PENDING_ORDERS[order_id] = {"user_id": user_id, "data": data}
+
+            product = "Slayd taqdimot" if data_type == "slide" else "Kurs ishi"
+            topic_short = data.get("topic", "")[:60]
+            try:
+                await bot.send_invoice(
+                    chat_id=message.chat.id,
+                    title=f"{product} — {tariff['name']} {tariff['stars']}",
+                    description=f"Mavzu: {topic_short}\n{tariff['desc']}",
+                    payload=order_id,
+                    provider_token=PAYMENT_PROVIDER_TOKEN,
+                    currency="UZS",
+                    prices=[LabeledPrice(label=f"{product} ({tariff['name']})",
+                                         amount=tariff["price"] * 100)],  # tiyin
+                )
+                await message.answer(
+                    "💳 To'lov hisob-fakturasi yuborildi. To'lovni amalga oshirsangiz, "
+                    "faylingiz avtomatik tayyorlanadi!"
+                )
+            except Exception as e:
+                log.error(f"Invoice xato: {e}")
+                PENDING_ORDERS.pop(order_id, None)
+                await message.answer(
+                    "❌ To'lov tizimida xatolik. Keyinroq urinib ko'ring yoki admin bilan bog'laning."
+                )
+            return
+
+        # Bepul rejim (token yo'q yoki admin)
         ACTIVE_USERS.add(user_id)
         try:
             async with GENERATION_SEMAPHORE:
@@ -215,11 +317,6 @@ async def handle_web_app_data(message: Message):
         finally:
             ACTIVE_USERS.discard(user_id)
         return
-
-    if data_type == "slide":
-        await process_slide_request(message, user_id, data)
-    elif data_type == "course":
-        await process_course_request(message, user_id, data)
     elif data_type == "admin_action":
         await process_admin_action(message, user_id, data)
     elif data_type == "admin_setting":
@@ -240,14 +337,16 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
         await message.answer("❌ Mavzu kiritilmagan. Iltimos qaytadan urinib ko'ring.")
         return
 
-    # Bugungi limit tekshirish
-    today_count = await get_user_today_count(user_id, "slide")
-    max_per_day = int(await get_setting("max_slides_per_day") or "10")
-    if today_count >= max_per_day:
-        await message.answer(
-            f"⚠️ Bugungi limit tugadi ({max_per_day} ta). Ertaga yana urinib ko'ring."
-        )
-        return
+    # Bugungi limit tekshirish (adminlarga limit YO'Q)
+    is_admin = user_id in ADMIN_IDS or await get_setting(f"admin_{user_id}") == "1"
+    if not is_admin:
+        today_count = await get_user_today_count(user_id, "slide")
+        max_per_day = int(await get_setting("max_slides_per_day") or "10")
+        if today_count >= max_per_day:
+            await message.answer(
+                f"⚠️ Bugungi limit tugadi ({max_per_day} ta). Ertaga yana urinib ko'ring."
+            )
+            return
 
     # Kutish xabari
     wait_msg = await message.answer(
@@ -259,12 +358,15 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
         "Bu jarayon 1-3 daqiqa vaqt olishi mumkin, iltimos kuting..."
     )
 
+    tariff = data.get("tariff", "standart")
+    design = data.get("design", "")
+
     try:
-        log.info(f"SLAYD boshlandi: topic='{topic}', count={slide_count}")
+        log.info(f"SLAYD boshlandi: topic='{topic}', count={slide_count}, tariff={tariff}, design={design}")
         # AI kontent generatsiya (ranglar + rasm promptlari bilan)
         # Maksimal 3 daqiqa kutamiz
         slide_data = await asyncio.wait_for(
-            asyncio.to_thread(generate_slide_content, topic, slide_count, language),
+            asyncio.to_thread(generate_slide_content, topic, slide_count, language, tariff),
             timeout=180
         )
         log.info(f"SLAYD matn tayyor: {len(slide_data.get('slides', []))} ta slayd")
@@ -284,7 +386,7 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
 
         # PPTX generatsiya (rasmlar yuklab olinadi — maksimal 8 daqiqa, 25 slayd uchun)
         pptx_bytes = await asyncio.wait_for(
-            asyncio.to_thread(generate_professional_pptx, slide_data),
+            asyncio.to_thread(generate_professional_pptx, slide_data, None, None, design),
             timeout=480
         )
         log.info(f"SLAYD PPTX tayyor: {len(pptx_bytes)} bayt")
@@ -341,14 +443,16 @@ async def process_course_request(message: Message, user_id: int, data: dict):
         await message.answer("❌ Mavzu kiritilmagan.")
         return
 
-    # Limit
-    today_count = await get_user_today_count(user_id, "course")
-    max_per_day = int(await get_setting("max_courses_per_day") or "5")
-    if today_count >= max_per_day:
-        await message.answer(
-            f"⚠️ Bugungi limit tugadi ({max_per_day} ta)."
-        )
-        return
+    # Limit (adminlarga limit YO'Q)
+    is_admin = user_id in ADMIN_IDS or await get_setting(f"admin_{user_id}") == "1"
+    if not is_admin:
+        today_count = await get_user_today_count(user_id, "course")
+        max_per_day = int(await get_setting("max_courses_per_day") or "5")
+        if today_count >= max_per_day:
+            await message.answer(
+                f"⚠️ Bugungi limit tugadi ({max_per_day} ta)."
+            )
+            return
 
     wait_msg = await message.answer(
         f"⏳ <b>Kurs ishi tayyorlanmoqda...</b>\n\n"
@@ -358,8 +462,9 @@ async def process_course_request(message: Message, user_id: int, data: dict):
 
     try:
         # AI kontent (maksimal 4 daqiqa)
+        course_tariff = data.get("tariff", "standart")
         course_data = await asyncio.wait_for(
-            asyncio.to_thread(generate_course_work_content, topic, language),
+            asyncio.to_thread(generate_course_work_content, topic, language, course_tariff),
             timeout=240
         )
 
@@ -481,6 +586,61 @@ async def process_admin_broadcast(message: Message, user_id: int, data: dict):
             failed += 1
 
     await message.answer(f"✅ Natija: {success} yuborildi, {failed} xato.")
+
+
+# ============ TO'LOV HANDLERLARI ============
+@dp.pre_checkout_query()
+async def pre_checkout_handler(query: PreCheckoutQuery):
+    """To'lovdan oldingi tekshiruv — buyurtma mavjudligini tasdiqlash"""
+    order = PENDING_ORDERS.get(query.invoice_payload)
+    if order:
+        await query.answer(ok=True)
+    else:
+        await query.answer(
+            ok=False,
+            error_message="Buyurtma topilmadi yoki eskirgan. Iltimos qaytadan so'rov yuboring."
+        )
+
+
+@dp.message(F.successful_payment)
+async def successful_payment_handler(message: Message):
+    """TO'LOV MUVAFFAQIYATLI — avtomatik generatsiya boshlanadi"""
+    if not message.from_user:
+        return
+
+    user_id = message.from_user.id
+    payment = message.successful_payment
+    order_id = payment.invoice_payload
+    order = PENDING_ORDERS.pop(order_id, None)
+
+    log.info(f"TO'LOV keldi: user={user_id}, order={order_id}, "
+             f"summa={payment.total_amount / 100} {payment.currency}")
+
+    if not order:
+        await message.answer(
+            "✅ To'lov qabul qilindi, lekin buyurtma topilmadi. "
+            "Admin bilan bog'laning — muammo hal qilinadi."
+        )
+        return
+
+    data = order["data"]
+    data_type = data.get("type", "slide")
+
+    await message.answer(
+        f"✅ <b>To'lov qabul qilindi!</b> "
+        f"({payment.total_amount / 100:.0f} so'm)\n\n"
+        "Faylingiz tayyorlanmoqda, kuting..."
+    )
+
+    ACTIVE_USERS.add(user_id)
+    try:
+        async with GENERATION_SEMAPHORE:
+            if data_type == "slide":
+                await process_slide_request(message, user_id, data)
+            else:
+                await process_course_request(message, user_id, data)
+    finally:
+        ACTIVE_USERS.discard(user_id)
 
 
 # ============ ODDIY KOMANDALAR ============

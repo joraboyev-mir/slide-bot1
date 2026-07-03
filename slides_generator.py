@@ -31,6 +31,20 @@ DEFAULT_THEME = {
     "light": RGBColor(0xEA, 0xF3, 0xFF),
 }
 
+# ===== 10 TA FAN DIZAYNI (foydalanuvchi tanlaydi) =====
+SUBJECT_THEMES = {
+    "matematika": {"primary": "#123C69", "accent": "#F2A104", "dark": "#0A1F33", "light": "#EAF1F8"},
+    "fizika":     {"primary": "#1A237E", "accent": "#00E5FF", "dark": "#0D1240", "light": "#E8EAF6"},
+    "kimyo":      {"primary": "#00695C", "accent": "#AEEA00", "dark": "#00332C", "light": "#E0F2F1"},
+    "biologiya":  {"primary": "#2E7D32", "accent": "#FFC107", "dark": "#14380F", "light": "#E8F5E9"},
+    "tarix":      {"primary": "#6D4C41", "accent": "#D4AF37", "dark": "#2E1A12", "light": "#EFEBE9"},
+    "adabiyot":   {"primary": "#880E4F", "accent": "#FF8A65", "dark": "#3D0625", "light": "#FCE4EC"},
+    "geografiya": {"primary": "#0277BD", "accent": "#66BB6A", "dark": "#012A42", "light": "#E1F5FE"},
+    "informatika":{"primary": "#37474F", "accent": "#00E676", "dark": "#10171B", "light": "#ECEFF1"},
+    "iqtisodiyot":{"primary": "#1B2A4A", "accent": "#2ECC71", "dark": "#0E1730", "light": "#EDF2F9"},
+    "ingliz":     {"primary": "#B71C1C", "accent": "#1565C0", "dark": "#3C0A0A", "light": "#FFEBEE"},
+}
+
 
 def hex_to_rgb(hex_str: str) -> RGBColor:
     """#RRGGBB -> RGBColor"""
@@ -578,6 +592,125 @@ def _layout_bullets_noimg(prs, slide_item, theme, num):
           str(num), size=Pt(12), color=theme["primary"], align=PP_ALIGN.RIGHT)
 
 
+def _layout_quote(prs, slide_item, theme, num):
+    """T5. KATTA IQTIBOS/BAYONOT: markazda katta matn, aksent qavslar"""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, theme["light"])
+
+    # Katta dekorativ qo'shtirnoq
+    _text(slide, Inches(0.6), Inches(0.2), Inches(2), Inches(1.6),
+          '"', size=Pt(120), bold=True, color=theme["accent"])
+
+    # Sarlavha
+    _text(slide, Inches(2.2), Inches(1.0), Inches(9.0), Inches(1.0),
+          slide_item.get('title', ''), size=Pt(28), bold=True,
+          color=theme["primary"], align=PP_ALIGN.CENTER)
+
+    # Markaziy panel — asosiy matn
+    panel = _rect(slide, Inches(1.6), Inches(2.3), Inches(10.1), Inches(3.8), WHITE)
+    panel.line.color.rgb = theme["accent"]
+    panel.line.width = Pt(2)
+    _text(slide, Inches(2.1), Inches(2.6), Inches(9.1), Inches(3.2),
+          slide_item.get('content', ''), size=Pt(16),
+          color=RGBColor(0x2A, 0x2A, 0x35), align=PP_ALIGN.CENTER,
+          anchor='ctr', line_spacing=1.35)
+
+    sub = slide_item.get('subtitle', '')
+    if sub:
+        _text(slide, Inches(1.6), Inches(6.4), Inches(10.1), Inches(0.6),
+              "— " + sub, size=Pt(13), color=theme["primary"],
+              align=PP_ALIGN.CENTER)
+
+    _text(slide, Inches(12.3), Inches(7.0), Inches(0.8), Inches(0.4),
+          str(num), size=Pt(12), color=theme["primary"], align=PP_ALIGN.RIGHT)
+
+
+def _layout_timeline(prs, slide_item, theme, num):
+    """T6. BOSQICHLAR/TIMELINE: gorizontal qadamlar chizig'i"""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, WHITE)
+    _rect(slide, 0, 0, SLIDE_W, Pt(6), theme["primary"])
+
+    _text(slide, Inches(0.8), Inches(0.45), Inches(11.7), Inches(1.0),
+          slide_item.get('title', ''), size=Pt(30), bold=True, color=theme["dark"])
+    _rect(slide, Inches(0.8), Inches(1.4), Inches(2.2), Pt(4), theme["accent"])
+
+    # Matnni bosqichlarga bo'lish
+    content = slide_item.get('content', '')
+    items = slide_item.get('bullet_points') or []
+    if not items:
+        items = [s.strip() for s in content.replace('!', '.').split('.') if s.strip()][:4]
+    items = [it.strip().lstrip('-•* ') for it in items if it.strip()][:4]
+
+    if items:
+        n_items = len(items)
+        # Gorizontal chiziq
+        line_y = Inches(2.6)
+        _rect(slide, Inches(1.0), line_y, Inches(11.3), Pt(3), theme["accent"])
+
+        step_w = Inches(11.3 / n_items)
+        for i, item in enumerate(items):
+            cx = Inches(1.0) + step_w * i + step_w / 2
+            # Doira raqam
+            circ = slide.shapes.add_shape(MSO_SHAPE.OVAL,
+                                          cx - Inches(0.35), line_y - Inches(0.32),
+                                          Inches(0.7), Inches(0.7))
+            circ.fill.solid()
+            circ.fill.fore_color.rgb = theme["primary"] if i % 2 == 0 else theme["accent"]
+            circ.line.color.rgb = WHITE
+            circ.line.width = Pt(2.5)
+            tfc = circ.text_frame
+            pc = tfc.paragraphs[0]
+            pc.alignment = PP_ALIGN.CENTER
+            rc = pc.add_run()
+            rc.text = str(i + 1)
+            _set_font(rc, size=Pt(18), bold=True, color=WHITE)
+
+            # Bosqich matni (pastda karta)
+            card = _rect(slide, Inches(1.0) + step_w * i + Inches(0.1), Inches(3.4),
+                         step_w - Inches(0.2), Inches(3.2), RGBColor(0xF6, 0xF8, 0xFB))
+            card.line.color.rgb = RGBColor(0xE0, 0xE4, 0xEA)
+            card.line.width = Pt(1)
+            _text(slide, Inches(1.0) + step_w * i + Inches(0.25), Inches(3.6),
+                  step_w - Inches(0.5), Inches(2.8),
+                  item, size=Pt(12), color=RGBColor(0x2A, 0x2A, 0x35), line_spacing=1.25)
+
+    _text(slide, Inches(12.3), Inches(7.0), Inches(0.8), Inches(0.4),
+          str(num), size=Pt(12), color=theme["primary"], align=PP_ALIGN.RIGHT)
+
+
+def _layout_big_number(prs, slide_item, theme, num):
+    """T7. KATTA RAQAM/FAKT: chapda ulkan raqam paneli + o'ngda matn"""
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _rect(slide, 0, 0, SLIDE_W, SLIDE_H, theme["dark"])
+
+    # Chap panel — katta raqam
+    _rect(slide, 0, 0, Inches(4.6), SLIDE_H, theme["primary"])
+    _rect(slide, Inches(4.6), 0, Inches(0.12), SLIDE_H, theme["accent"])
+
+    # Subtitle'dan raqam ajratish (masalan "50 million foydalanuvchi")
+    sub = slide_item.get('subtitle', '')
+    m = re.search(r'(\d[\d\s.,%]*)', sub)
+    big = m.group(1).strip()[:8] if m else f"{num:02d}"
+    _text(slide, Inches(0.4), Inches(2.2), Inches(3.9), Inches(1.8),
+          big, size=Pt(64), bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+    if sub:
+        _text(slide, Inches(0.4), Inches(4.2), Inches(3.9), Inches(1.6),
+              sub, size=Pt(13), color=RGBColor(0xE0, 0xE6, 0xF0),
+              align=PP_ALIGN.CENTER)
+
+    # O'ng tomonda sarlavha + matn
+    _text(slide, Inches(5.2), Inches(0.8), Inches(7.4), Inches(1.2),
+          slide_item.get('title', ''), size=Pt(27), bold=True, color=WHITE)
+    _rect(slide, Inches(5.2), Inches(1.9), Inches(1.8), Pt(4), theme["accent"])
+    _text(slide, Inches(5.2), Inches(2.3), Inches(7.5), Inches(4.6),
+          slide_item.get('content', ''), size=Pt(15),
+          color=RGBColor(0xE2, 0xE6, 0xEE), line_spacing=1.3)
+
+    _text(slide, Inches(12.3), Inches(7.0), Inches(0.8), Inches(0.4),
+          str(num), size=Pt(12), color=WHITE, align=PP_ALIGN.RIGHT)
+
+
 def _layout_conclusion(prs, slide_item, theme, img_raw):
     """7. XULOSA: to'liq rasm + markazda matn"""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
@@ -611,9 +744,12 @@ def _layout_thanks(prs, theme, img_raw, pres_title):
 # ==================== ASOSIY GENERATOR ====================
 
 def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None,
-                                progress_callback=None) -> bytes:
+                                progress_callback=None, design: str = None) -> bytes:
     """
     Professional PPTX yaratish.
+
+    design: foydalanuvchi tanlagan fan dizayni (SUBJECT_THEMES kaliti)
+            bo'sh bo'lsa — AI tanlagan ranglar ishlatiladi
 
     slide_data = {
       "title": "...",
@@ -626,7 +762,12 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
     prs.slide_width = SLIDE_W
     prs.slide_height = SLIDE_H
 
-    theme = build_theme(slide_data.get('theme_colors'))
+    # Foydalanuvchi dizayn tanlagan bo'lsa — u ustuvor, aks holda AI ranglari
+    if design and design in SUBJECT_THEMES:
+        theme = build_theme(SUBJECT_THEMES[design])
+        log.info(f"Dizayn tanlandi: {design}")
+    else:
+        theme = build_theme(slide_data.get('theme_colors'))
     slides = slide_data.get('slides', [])
     pres_title = slide_data.get('title', 'Taqdimot')
 
@@ -646,14 +787,14 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
 
     # ===== QAYSI SLAYDLARGA RASM KERAK? =====
     # Titul (0) va Xulosa (oxirgi) — har doim rasm foni
-    # O'rta slaydlarning faqat 1/3 qismi rasmli, qolganlari matn dizaynida
+    # O'rta slaydlarning 1/4 qismi rasmli (har 4-varaq), qolganlari matn dizaynida
     n = len(slides)
     image_indices = {0}
     if n > 2:
         image_indices.add(n - 1)
-        # har 3-o'rta slaydga rasm: 1, 4, 7, 10...
+        # har 4-o'rta slaydga rasm: 2, 6, 10, 14... (reja slaydi rasmsiz qoladi)
         for i in range(1, n - 1):
-            if (i - 1) % 3 == 0:
+            if (i - 2) % 4 == 0 and i >= 2:
                 image_indices.add(i)
 
     # Faqat kerakli rasmlarni yuklaymiz (mavzuga mos, AI yaratgan)
@@ -719,7 +860,10 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
             if has_bullets:
                 _layout_bullets_noimg(prs, item, theme, idx + 1)
             else:
-                txt_layouts = [_layout_text_accent, _layout_text_dark, _layout_text_split]
+                # 6 xil matn layouti rotatsiyada (jami 15 xil varaq dizayni)
+                txt_layouts = [_layout_text_accent, _layout_text_dark,
+                               _layout_text_split, _layout_quote,
+                               _layout_big_number, _layout_timeline]
                 layout = txt_layouts[txt_layout_i % len(txt_layouts)]
                 txt_layout_i += 1
                 layout(prs, item, theme, idx + 1)
