@@ -350,6 +350,11 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
         "biologiya": "Dizayn 4", "tarix": "Dizayn 5", "adabiyot": "Dizayn 6",
         "geografiya": "Dizayn 7", "informatika": "Dizayn 8",
         "iqtisodiyot": "Dizayn 9", "ingliz": "Dizayn 10",
+        "sport": "Dizayn 11", "kino": "Dizayn 12", "kulinariya": "Dizayn 13",
+        "psixologiya": "Dizayn 14", "avto": "Dizayn 15", "gaming": "Dizayn 16",
+        "mobil": "Dizayn 17", "foto": "Dizayn 18", "karyera": "Dizayn 19",
+        "musiqa": "Dizayn 20",
+        "premium_gold": "👑 Universal Lux", "aurora": "🌈 Universal Modern",
     }
     TARIFF_NAMES = {
         "standart": "⭐️ Standart", "premium": "⭐️⭐️ Premium",

@@ -43,6 +43,19 @@ SUBJECT_THEMES = {
     "informatika":{"primary": "#37474F", "accent": "#00E676", "dark": "#10171B", "light": "#ECEFF1"},
     "iqtisodiyot":{"primary": "#1B2A4A", "accent": "#2ECC71", "dark": "#0E1730", "light": "#EDF2F9"},
     "ingliz":     {"primary": "#B71C1C", "accent": "#1565C0", "dark": "#3C0A0A", "light": "#FFEBEE"},
+    "sport":      {"primary": "#D32F2F", "accent": "#FFD600", "dark": "#1A1A1A", "light": "#FBE9E7"},
+    "kino":       {"primary": "#8E0E00", "accent": "#E50914", "dark": "#0B0B0D", "light": "#F5F5F1"},
+    "kulinariya": {"primary": "#E65100", "accent": "#FFB300", "dark": "#3E1F0D", "light": "#FFF3E0"},
+    "psixologiya":{"primary": "#00838F", "accent": "#FFD54F", "dark": "#0E2A32", "light": "#E0F7FA"},
+    "avto":       {"primary": "#1C1C24", "accent": "#FF3D00", "dark": "#0A0A10", "light": "#F2F3F5"},
+    "gaming":     {"primary": "#4A148C", "accent": "#00E5FF", "dark": "#12071F", "light": "#F3E5F5"},
+    "mobil":      {"primary": "#0091EA", "accent": "#FF4081", "dark": "#082032", "light": "#E1F5FE"},
+    "foto":       {"primary": "#2C3E50", "accent": "#F39C12", "dark": "#141E26", "light": "#ECF0F1"},
+    "karyera":    {"primary": "#0A3D62", "accent": "#F6B93B", "dark": "#071E33", "light": "#EAF0F6"},
+    "musiqa":     {"primary": "#4527A0", "accent": "#FF9100", "dark": "#1A1035", "light": "#EDE7F6"},
+    # Universal dizaynlar — HAR QANDAY mavzuga 100% mos (abstrakt premium fonlar)
+    "premium_gold": {"primary": "#1F1B16", "accent": "#D4AF37", "dark": "#12100C", "light": "#FAF6ED"},
+    "aurora":       {"primary": "#5B2C87", "accent": "#00D4FF", "dark": "#1B1035", "light": "#F4F0FB"},
 }
 
 # Har fan dizayni uchun 4 ta stok rasm — Mini App preview'dagi bilan BIR XIL!
@@ -58,6 +71,18 @@ SUBJECT_IMAGES = {
     "informatika":[_PX.format(6424583,'jpeg'), _PX.format(5480781,'jpeg'), _PX.format(7325498,'jpeg'), _PX.format(17489157,'jpeg')],
     "iqtisodiyot":[_PX.format(186461,'jpeg'), _PX.format(6801639,'jpeg'), _PX.format(7792841,'jpeg'), _PX.format(5398879,'jpeg')],
     "ingliz":     [_PX.format(13887712,'jpeg'), _PX.format(7450476,'jpeg'), _PX.format(17379169,'jpeg'), _PX.format(4440715,'jpeg')],
+    "sport":      [_PX.format(3839310,'jpeg'), _PX.format(4720759,'jpeg'), _PX.format(3999606,'jpeg'), _PX.format(7209145,'jpeg')],
+    "kino":       [_PX.format(1790556,'jpeg'), _PX.format(7991579,'jpeg'), _PX.format(7991266,'jpeg'), _PX.format(3921045,'jpeg')],
+    "kulinariya": [_PX.format(6076278,'jpeg'), _PX.format(33937243,'jpeg'), _PX.format(8176298,'jpeg'), _PX.format(8398668,'jpeg')],
+    "psixologiya":[_PX.format(33090262,'jpeg'), _PX.format(6921271,'jpeg'), _PX.format(5978426,'jpeg'), _PX.format(9755375,'jpeg')],
+    "avto":       [_PX.format(17855881,'jpeg'), _PX.format(27467746,'jpeg'), _PX.format(17121460,'jpeg'), _PX.format(34243853,'jpeg')],
+    "gaming":     [_PX.format(7858742,'jpeg'), _PX.format(9072216,'jpeg'), _PX.format(9072394,'jpeg'), _PX.format(7915219,'jpeg')],
+    "mobil":      [_PX.format(215581,'jpeg'), _PX.format(1130643,'jpeg'), _PX.format(5243203,'jpeg'), _PX.format(4387770,'jpeg')],
+    "foto":       [_PX.format(33899243,'jpeg'), _PX.format(2842457,'jpeg'), _PX.format(11457402,'jpeg'), _PX.format(33916846,'jpeg')],
+    "karyera":    [_PX.format(4225927,'jpeg'), _PX.format(5439379,'jpeg'), _PX.format(4225921,'jpeg'), _PX.format(5439449,'jpeg')],
+    "musiqa":     [_PX.format(8448561,'jpeg'), _PX.format(7715459,'jpeg'), _PX.format(9534913,'jpeg'), _PX.format(18527859,'jpeg')],
+    "premium_gold": [_PX.format(5052701,'jpeg'), _PX.format(15314538,'jpeg'), _PX.format(14910451,'jpeg'), _PX.format(15273578,'jpeg')],
+    "aurora":       [_PX.format(7135082,'jpeg'), _PX.format(28628485,'jpeg'), _PX.format(30920080,'jpeg'), _PX.format(6985131,'jpeg')],
 }
 
 
