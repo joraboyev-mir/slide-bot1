@@ -58,24 +58,25 @@ def build_theme(theme_colors: dict | None) -> dict:
 
 # ==================== RASM YUKLASH ====================
 
-def _fetch_ai_image(prompt: str, width: int = 768, height: int = 432, seed: int = 0) -> bytes | None:
+def _fetch_ai_image(prompt: str, width: int = 1024, height: int = 576, seed: int = 0) -> bytes | None:
     """Pollinations AI orqali mavzuga mos rasm generatsiya qilish (bepul, kalitsiz).
-    turbo model + kichik o'lcham = 2-3x tezroq"""
+    flux modeli — yuqori sifat, realistik natija"""
+    # 1-urinish: flux (eng sifatli model)
+    try:
+        enc = urllib.parse.quote(prompt[:200])
+        url = (f"https://image.pollinations.ai/prompt/{enc}"
+               f"?width={width}&height={height}&nologo=true&seed={seed}&model=flux&enhance=true")
+        resp = requests.get(url, timeout=45)
+        if resp.status_code == 200 and len(resp.content) > 5000:
+            return resp.content
+    except Exception:
+        pass
+    # 2-urinish: turbo (tezroq zaxira)
     try:
         enc = urllib.parse.quote(prompt[:150])
         url = (f"https://image.pollinations.ai/prompt/{enc}"
                f"?width={width}&height={height}&nologo=true&seed={seed}&model=turbo")
         resp = requests.get(url, timeout=25)
-        if resp.status_code == 200 and len(resp.content) > 5000:
-            return resp.content
-    except Exception:
-        pass
-    # Turbo ishlamasa — oddiy rejim, oxirgi urinish
-    try:
-        enc = urllib.parse.quote(prompt[:150])
-        url = (f"https://image.pollinations.ai/prompt/{enc}"
-               f"?width={width}&height={height}&nologo=true&seed={seed}")
-        resp = requests.get(url, timeout=20)
         if resp.status_code == 200 and len(resp.content) > 5000:
             return resp.content
     except Exception:
@@ -233,8 +234,8 @@ def _layout_title(prs, slide_item, theme, img_raw, pres_title):
               f"Tayyorladi: {author}", size=Pt(16), bold=True, color=WHITE)
 
 
-def _layout_image_right(prs, slide_item, theme, img_raw, num):
-    """2. MATN CHAP + RASM O'NG (yumaloq burchakli)"""
+def _layout_image_right(prs, slide_item, theme, img_raw, num, img2_raw=None):
+    """2. MATN CHAP + RASM O'NG (yumaloq burchakli), pastda 2-rasm"""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     _rect(slide, 0, 0, SLIDE_W, SLIDE_H, WHITE)
     # chap tomonda yupqa rangli panel
@@ -244,8 +245,15 @@ def _layout_image_right(prs, slide_item, theme, img_raw, num):
           slide_item.get('title', ''), size=Pt(30), bold=True, color=theme["dark"])
     _rect(slide, Inches(0.8), Inches(1.55), Inches(2.2), Pt(4), theme["accent"])
 
-    _text(slide, Inches(0.8), Inches(1.95), Inches(6.4), Inches(5.1),
-          slide_item.get('content', ''), size=Pt(15), color=RGBColor(0x33, 0x33, 0x3D))
+    if img2_raw:
+        # Matn qisqaroq joy oladi, pastda 2-rasm
+        _text(slide, Inches(0.8), Inches(1.95), Inches(6.4), Inches(3.1),
+              slide_item.get('content', ''), size=Pt(14), color=RGBColor(0x33, 0x33, 0x3D))
+        img2 = _rounded_image(img2_raw, 640, 360, radius=30)
+        slide.shapes.add_picture(io.BytesIO(img2), Inches(0.8), Inches(5.0), Inches(4.2), Inches(2.1))
+    else:
+        _text(slide, Inches(0.8), Inches(1.95), Inches(6.4), Inches(5.1),
+              slide_item.get('content', ''), size=Pt(15), color=RGBColor(0x33, 0x33, 0x3D))
 
     img = _rounded_image(img_raw, 720, 800, radius=40)
     slide.shapes.add_picture(io.BytesIO(img), Inches(7.7), Inches(0.9), Inches(5.0), Inches(5.6))
@@ -254,8 +262,8 @@ def _layout_image_right(prs, slide_item, theme, img_raw, num):
           str(num), size=Pt(12), color=theme["primary"], align=PP_ALIGN.RIGHT)
 
 
-def _layout_image_left(prs, slide_item, theme, img_raw, num):
-    """3. RASM CHAP (to'liq balandlik) + MATN O'NG rangli fonda"""
+def _layout_image_left(prs, slide_item, theme, img_raw, num, img2_raw=None):
+    """3. RASM CHAP (to'liq balandlik) + MATN O'NG rangli fonda, 2-rasm pastda"""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     _rect(slide, 0, 0, SLIDE_W, SLIDE_H, theme["dark"])
 
@@ -269,9 +277,16 @@ def _layout_image_left(prs, slide_item, theme, img_raw, num):
           slide_item.get('title', ''), size=Pt(28), bold=True, color=WHITE)
     _rect(slide, Inches(6.2), Inches(1.85), Inches(1.8), Pt(4), theme["accent"])
 
-    _text(slide, Inches(6.2), Inches(2.25), Inches(6.5), Inches(4.6),
-          slide_item.get('content', ''), size=Pt(15),
-          color=RGBColor(0xE2, 0xE6, 0xEE))
+    if img2_raw:
+        _text(slide, Inches(6.2), Inches(2.25), Inches(6.5), Inches(2.6),
+              slide_item.get('content', ''), size=Pt(14),
+              color=RGBColor(0xE2, 0xE6, 0xEE))
+        img2 = _rounded_image(img2_raw, 640, 340, radius=30)
+        slide.shapes.add_picture(io.BytesIO(img2), Inches(6.2), Inches(5.0), Inches(4.4), Inches(2.2))
+    else:
+        _text(slide, Inches(6.2), Inches(2.25), Inches(6.5), Inches(4.6),
+              slide_item.get('content', ''), size=Pt(15),
+              color=RGBColor(0xE2, 0xE6, 0xEE))
 
     _text(slide, Inches(12.5), Inches(7.05), Inches(0.6), Inches(0.35),
           str(num), size=Pt(12), color=WHITE, align=PP_ALIGN.RIGHT)
@@ -311,16 +326,28 @@ def _layout_bullets(prs, slide_item, theme, img_raw, num):
     items = slide_item.get('bullet_points') or []
     if not items:
         items = [s.strip() for s in slide_item.get('content', '').split('.') if s.strip()][:6]
-    items = [it.strip().lstrip('-•* ') for it in items if it.strip()][:6]
+    items = [it.strip().lstrip('-•* ') for it in items if it.strip()]
 
-    # kartalar: 2 ustunli
+    img2_raw = slide_item.get('_img2')
+    if img2_raw:
+        # O'ngda 2-rasm, kartalar chapda bitta ustun bo'lib
+        items = items[:3]
+        img2 = _rounded_image(img2_raw, 560, 600, radius=30)
+        slide.shapes.add_picture(io.BytesIO(img2), Inches(8.6), Inches(2.25), Inches(4.2), Inches(4.5))
+        card_w_override = Inches(7.6)
+    else:
+        items = items[:6]
+        card_w_override = None
+
+    # kartalar: 2 ustunli (yoki rasm bo'lsa 1 ustunli keng)
     top0 = Inches(2.25)
-    card_w = Inches(6.0)
+    card_w = card_w_override or Inches(6.0)
     card_h = Inches(1.5)
     gap = Inches(0.25)
+    single_col = card_w_override is not None
     for i, item in enumerate(items):
-        col = i % 2
-        row = i // 2
+        col = 0 if single_col else i % 2
+        row = i if single_col else i // 2
         left = Inches(0.5) + col * (card_w + gap)
         top = top0 + row * (card_h + gap)
         card = _rect(slide, left, top, card_w, card_h, WHITE)
@@ -347,8 +374,8 @@ def _layout_bullets(prs, slide_item, theme, img_raw, num):
           str(num), size=Pt(12), color=theme["primary"], align=PP_ALIGN.RIGHT)
 
 
-def _layout_split_diagonal(prs, slide_item, theme, img_raw, num):
-    """6. YUQORI RASM + PASTKI MATN, rangli aksentlar bilan"""
+def _layout_split_diagonal(prs, slide_item, theme, img_raw, num, img2_raw=None):
+    """6. YUQORI RASM + PASTKI MATN + o'ngda 2-rasm"""
     slide = prs.slides.add_slide(prs.slide_layouts[6])
     _rect(slide, 0, 0, SLIDE_W, SLIDE_H, WHITE)
 
@@ -361,8 +388,15 @@ def _layout_split_diagonal(prs, slide_item, theme, img_raw, num):
     _text(slide, Inches(1.0), Inches(2.7), Inches(7.0), Inches(1.05),
           slide_item.get('title', ''), size=Pt(24), bold=True, color=WHITE, anchor='ctr')
 
-    _text(slide, Inches(0.8), Inches(4.25), Inches(11.7), Inches(2.9),
-          slide_item.get('content', ''), size=Pt(15), color=RGBColor(0x33, 0x33, 0x3D))
+    if img2_raw:
+        # Matn chapda, 2-rasm o'ngda
+        _text(slide, Inches(0.8), Inches(4.25), Inches(7.6), Inches(2.9),
+              slide_item.get('content', ''), size=Pt(14), color=RGBColor(0x33, 0x33, 0x3D))
+        img2 = _rounded_image(img2_raw, 560, 420, radius=30)
+        slide.shapes.add_picture(io.BytesIO(img2), Inches(8.8), Inches(4.2), Inches(3.9), Inches(2.9))
+    else:
+        _text(slide, Inches(0.8), Inches(4.25), Inches(11.7), Inches(2.9),
+              slide_item.get('content', ''), size=Pt(15), color=RGBColor(0x33, 0x33, 0x3D))
 
     sub = slide_item.get('subtitle', '')
     if sub:
@@ -430,7 +464,9 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
     def _load_one(args):
         i, s = args
         prompt = s.get('image_prompt') or (image_prompts[i] if image_prompts and i < len(image_prompts) else pres_title)
-        full_prompt = f"{prompt}, professional photography, high quality, cinematic lighting, no text"
+        full_prompt = (f"{prompt}, ultra realistic professional stock photography, 4k quality, "
+                       f"sharp focus, cinematic lighting, detailed, "
+                       f"no text, no watermark, no cartoon, no illustration")
         log.info(f"Rasm {i+1}/{len(slides)} yuklanmoqda: {prompt[:60]}")
         raw = _fetch_ai_image(full_prompt, seed=1000 + i * 7)
         if raw is None:
@@ -445,7 +481,28 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
     with ThreadPoolExecutor(max_workers=min(len(slides), 10)) as pool:
         for i, raw in pool.map(_load_one, enumerate(slides)):
             images[i] = raw
-    log.info(f"Barcha rasmlar tayyor: {len(images)} ta")
+    log.info(f"Asosiy rasmlar tayyor: {len(images)} ta")
+
+    # ---- QO'SHIMCHA (ikkinchi) rasmlar — o'rta slaydlar uchun ----
+    def _load_secondary(args):
+        i, s = args
+        prompt = s.get('image_prompt') or pres_title
+        full_prompt = (f"{prompt}, detailed close-up professional photograph, realistic, "
+                       f"high resolution, natural lighting, "
+                       f"no text, no watermark, no cartoon")
+        raw = _fetch_ai_image(full_prompt, seed=5000 + i * 13)
+        if raw is None:
+            raw = _fallback_gradient(1024, 576, theme)
+        return i, raw
+
+    images2 = {}
+    middle = [(i, s) for i, s in enumerate(slides) if 0 < i < len(slides) - 1]
+    if middle:
+        with ThreadPoolExecutor(max_workers=min(len(middle), 10)) as pool:
+            for i, raw in pool.map(_load_secondary, middle):
+                if raw:
+                    images2[i] = raw
+    log.info(f"Qo'shimcha rasmlar tayyor: {len(images2)} ta")
 
     # Rahmat slaydi uchun rasm — birinchi rasmni ishlatamiz
     thanks_img = images[0] if images else _fallback_gradient(1280, 720, theme)
@@ -463,6 +520,7 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
 
     for idx, item in enumerate(slides):
         img = images[idx]
+        img2 = images2.get(idx)
         if idx == 0:
             if author:
                 item = dict(item)
@@ -473,13 +531,18 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
         else:
             # bullet_points bo'lsa — bullets layout, aks holda rotatsiya
             if item.get('bullet_points') and len(item['bullet_points']) >= 3:
-                layout = _layout_bullets
+                item = dict(item)
+                item['_img2'] = img2
+                _layout_bullets(prs, item, theme, img, idx + 1)
             else:
-                # bullets siz layoutlar rotatsiyasi
+                # 2-rasmni qo'llab-quvvatlaydigan layoutlar rotatsiyasi
                 non_bullet = [_layout_image_right, _layout_full_image,
                               _layout_image_left, _layout_split_diagonal]
                 layout = non_bullet[(idx - 1) % len(non_bullet)]
-            layout(prs, item, theme, img, idx + 1)
+                if layout is _layout_full_image:
+                    layout(prs, item, theme, img, idx + 1)
+                else:
+                    layout(prs, item, theme, img, idx + 1, img2_raw=img2)
 
     _layout_thanks(prs, theme, thanks_img, pres_title)
 

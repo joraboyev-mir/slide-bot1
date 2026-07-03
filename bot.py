@@ -79,10 +79,31 @@ def main_keyboard():
     )
 
 
-def admin_inline_keyboard():
-    """Admin tugmalari"""
+async def admin_inline_keyboard():
+    """Admin tugmalari — statistika URL orqali panelga uzatiladi"""
+    # Statistikani yig'ish
+    try:
+        total_users = await get_users_count()
+        stats = await get_generation_stats(30)
+        model = await get_setting("ai_model") or "gemini-2.5-flash-lite"
+        max_s = await get_setting("max_slides_per_day") or "10"
+        max_c = await get_setting("max_courses_per_day") or "5"
+        sep = "&" if "?" in ADMIN_WEBAPP_URL else "?"
+        admin_url = (
+            f"{ADMIN_WEBAPP_URL}{sep}"
+            f"users={total_users}"
+            f"&slides={stats.get('slide', 0)}"
+            f"&courses={stats.get('course', 0)}"
+            f"&total={stats.get('total', 0)}"
+            f"&model={model}"
+            f"&limit_s={max_s}"
+            f"&limit_c={max_c}"
+        )
+    except Exception:
+        admin_url = ADMIN_WEBAPP_URL
+
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚙️ Admin Panel", web_app=WebAppInfo(url=ADMIN_WEBAPP_URL))],
+        [InlineKeyboardButton(text="⚙️ Admin Panel", web_app=WebAppInfo(url=admin_url))],
         [
             InlineKeyboardButton(text="👥 Foydalanuvchilar", callback_data="admin_users"),
             InlineKeyboardButton(text="📊 Statistika", callback_data="admin_stats"),
@@ -143,7 +164,7 @@ async def cmd_start(message: Message):
     if user_id in ADMIN_IDS or await get_setting(f"admin_{user_id}") == "1":
         await message.answer(
             "🔧 <b>Admin panel:</b>",
-            reply_markup=admin_inline_keyboard(),
+            reply_markup=await admin_inline_keyboard(),
         )
 
 
@@ -235,10 +256,10 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
         if author:
             slide_data["author"] = author
 
-        # PPTX generatsiya (rasmlar yuklab olinadi — maksimal 5 daqiqa)
+        # PPTX generatsiya (rasmlar yuklab olinadi — maksimal 8 daqiqa, 25 slayd uchun)
         pptx_bytes = await asyncio.wait_for(
             asyncio.to_thread(generate_professional_pptx, slide_data),
-            timeout=300
+            timeout=480
         )
         log.info(f"SLAYD PPTX tayyor: {len(pptx_bytes)} bayt")
 
@@ -492,7 +513,7 @@ async def admin_command(message: Message):
 
     await message.answer(
         "🔧 <b>Admin panel:</b>",
-        reply_markup=admin_inline_keyboard(),
+        reply_markup=await admin_inline_keyboard(),
     )
 
 
@@ -515,7 +536,7 @@ async def admin_stats(callback: CallbackQuery):
         f"📑 Slaydlar: {stats.get('slide', 0)} ta\n"
         f"📝 Kurs ishlari: {stats.get('course', 0)} ta\n"
         f"📦 Jami generatsiyalar: {stats.get('total', 0)} ta\n",
-        reply_markup=admin_inline_keyboard(),
+        reply_markup=await admin_inline_keyboard(),
     )
     await callback.answer()
 
@@ -541,7 +562,7 @@ async def admin_users_list(callback: CallbackQuery):
         name = u.get('first_name', 'Noma\'lum') or 'Noma\'lum'
         text += f"• <code>{u['user_id']}</code> — {name} | 📑{u.get('total_slides', 0)} 📝{u.get('total_courses', 0)}\n"
 
-    await callback.message.edit_text(text, reply_markup=admin_inline_keyboard())
+    await callback.message.edit_text(text, reply_markup=await admin_inline_keyboard())
     await callback.answer()
 
 
@@ -630,7 +651,7 @@ async def admin_settings_menu(callback: CallbackQuery):
         f"/set_limit_courses N — Kurs ishi limiti"
     )
 
-    await callback.message.edit_text(text, reply_markup=admin_inline_keyboard())
+    await callback.message.edit_text(text, reply_markup=await admin_inline_keyboard())
     await callback.answer()
 
 

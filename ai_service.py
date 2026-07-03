@@ -164,10 +164,25 @@ def _generate(prompt: str, max_tokens: int = 4000) -> str:
 def generate_slide_content(topic: str, num_slides: int = 5, language: str = "uz") -> dict:
     """Slayd uchun kontent generatsiya qilish - professional va uzun.
     AI o'zi mavzuga mos rang palitrasini va har bir slayd uchun rasm promptini tanlaydi."""
-    prompt = f"""Siz professional taqdimot dizayneri va kontent yaratuvchi ekspertsiz. Quyidagi mavzu bo'yicha {num_slides} ta slayd uchun TO'LIQ va UZUN kontent yarating.
+    prompt = f"""Siz professional taqdimot dizayneri va shu sohaning chuqur bilimli mutaxassisisiz. Quyidagi mavzu bo'yicha {num_slides} ta slayd uchun TO'LIQ va UZUN kontent yarating.
 
 MAVZU: {topic}
 TIL: {"O'zbek" if language == "uz" else "Rus" if language == "ru" else "English"}
+
+===== 0. AVVAL MAVZUNI CHUQUR TAHLIL QILING (ichingizda, javobga yozmasdan) =====
+Slaydlarni yozishdan OLDIN o'zingizga shu savollarni bering va javoblaringizni kontentda ishlating:
+1. Bu mavzu ASLIDA nima? (fan sohasimi, mahsulotmi, o'yin, shaxs, hodisa, texnologiya, kasallik...?)
+   MASALAN: "Garena" — bu o'yin platformasi/Free Fire noshiri, "Python" — dasturlash tili,
+   "Amir Temur" — tarixiy shaxs. Mavzuni NOTO'G'RI tushunib olmang!
+2. Bu mavzu qaysi sohaga tegishli va auditoriyasi kim?
+3. Mavzuning eng muhim 5-7 jihati nima? (tarixi, tuzilishi, turlari, afzalliklari,
+   muammolari, statistikasi, kelajagi, qiziqarli faktlar...)
+4. Bu mavzu bo'yicha qanday ANIQ faktlar, raqamlar, sanalar, nomlar bor?
+   Umumiy gaplar o'rniga aniq ma'lumotlar ishlating!
+5. Rasm uchun eng mos vizual obrazlar qanday?
+
+Tahlil natijasini bevosita slaydlar kontentiga singdiring — har bir slayd shu mavzuga
+XOS bo'lsin, boshqa har qanday mavzuga ham to'g'ri keladigan umumiy gaplardan qoching!
 
 ===== 1. RANG PALITRASI =====
 Mavzuga eng mos keladigan professional rang palitrasini tanlang (HEX formatda):
@@ -179,8 +194,11 @@ Mavzuga eng mos keladigan professional rang palitrasini tanlang (HEX formatda):
 - Va hokazo — mavzudan kelib chiqib O'ZINGIZ tanlang!
 
 ===== 2. HAR BIR SLAYD UCHUN =====
-- Slayd sarlavhasi (qisqa, ta'sirli)
-- Asosiy matn (KAMIDA 4-5 jumla, batafsil va uzun, 60-120 so'z)
+- Slayd sarlavhasi (qisqa, ta'sirli, mavzuga XOS)
+- Asosiy matn (KAMIDA 4-5 jumla, batafsil va uzun, 60-120 so'z):
+  * ANIQ faktlar, raqamlar, sanalar, nomlar bo'lsin
+  * "Bu juda muhim mavzu" kabi bo'sh gaplar TAQIQLANADI
+  * Har jumla o'quvchiga YANGI ma'lumot bersin
 - "image_prompt": shu slayd orqa foni uchun INGLIZ TILIDA rasm tavsifi.
   Rasm mavzuga va slayd mazmuniga aniq mos bo'lsin. Masalan slayd yurak
   kasalliklari haqida bo'lsa: "human heart medical illustration, cardiology,
@@ -221,16 +239,28 @@ Har bir slaydda "type": "title", "content", "bullet_list" yoki "conclusion".
 HAR BIR slaydda "image_prompt" MAJBURIY va har xil bo'lsin!
 """
 
-    result = _generate(prompt, max_tokens=16000)
+    # 25 tagacha slayd uchun katta limit
+    result = _generate(prompt, max_tokens=40000)
     return _parse_json_safe(result)
 
 
 def generate_course_work_content(topic: str, language: str = "uz") -> dict:
     """Kurs ishi uchun kontent generatsiya qilish"""
-    prompt = f"""Siz akademik kurs ishi yozuvchi professorsiz. Quyidagi mavzu bo'yicha TO'LIQ kurs ishi kontentini yarating.
+    prompt = f"""Siz akademik kurs ishi yozuvchi professor va shu sohaning chuqur mutaxassisisiz. Quyidagi mavzu bo'yicha TO'LIQ kurs ishi kontentini yarating.
 
 MAVZU: {topic}
 TIL: {"O'zbek" if language == "uz" else "Rus" if language == "ru" else "English"}
+
+===== AVVAL MAVZUNI CHUQUR TAHLIL QILING (ichingizda, javobga yozmasdan) =====
+Yozishdan OLDIN aniqlang:
+1. Bu mavzu ASLIDA nima va qaysi fanga tegishli? Mavzuni noto'g'ri tushunmang!
+2. Bu mavzu bo'yicha qanday ANIQ ilmiy faktlar, nazariyalar, olimlar, sanalar, statistika bor?
+3. Mavzuning nazariy asoslari, amaliy jihatlari va muammolari nima?
+4. Qaysi real manbalar/adabiyotlar shu mavzuga mos keladi?
+
+Tahlil natijasini matnga singdiring: har bir paragraf ANIQ ma'lumot, fakt va tahlil
+bersin. "Bu mavzu juda dolzarb" kabi umumiy bo'sh gaplarni KO'P ishlatmang —
+o'rniga aniq raqamlar, misollar, nomlar yozing.
 
 Kurs ishi quyidagi bo'limlardan iborat bo'lishi kerak:
 1. Titul sahifasi
