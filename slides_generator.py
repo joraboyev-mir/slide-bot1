@@ -788,12 +788,19 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
     prs.slide_width = SLIDE_W
     prs.slide_height = SLIDE_H
 
-    # Foydalanuvchi dizayn tanlagan bo'lsa — u ustuvor, aks holda AI ranglari
+    # Dizaynni normalizatsiya: parametrdan yoki slide_data'dan olamiz (himoya)
+    design = str(design or slide_data.get('design') or '').strip().lower()
+
+    # Foydalanuvchi dizayn tanlagan bo'lsa — u USTUVOR, AI ranglari e'tiborga olinmaydi
     if design and design in SUBJECT_THEMES:
         theme = build_theme(SUBJECT_THEMES[design])
-        log.info(f"Dizayn tanlandi: {design}")
+        log.info(f"===== FAN DIZAYNI QO'LLANDI: '{design}' (AI ranglari bekor qilindi) =====")
     else:
+        if design:
+            log.warning(f"Dizayn kaliti '{design}' SUBJECT_THEMES ichida topilmadi! "
+                        f"Mavjudlar: {list(SUBJECT_THEMES.keys())}")
         theme = build_theme(slide_data.get('theme_colors'))
+        log.info("AI tanlagan ranglar ishlatildi (dizayn tanlanmagan)")
     slides = slide_data.get('slides', [])
     pres_title = slide_data.get('title', 'Taqdimot')
 

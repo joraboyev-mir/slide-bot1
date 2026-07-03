@@ -191,7 +191,18 @@ async def cmd_start(message: Message):
 
     welcome_text = await get_setting("welcome_message")
     if not welcome_text:
-        welcome_text = "Assalomu alaykum! Slayd yoki Kurs ishi yaratish uchun pastdagi tugmalarni bosing."
+        welcome_text = (
+            "Assalomu alaykum! 👋\n\n"
+            "Men AI yordamida <b>professional slaydlar (PPTX)</b> va "
+            "<b>kurs ishlari (DOCX)</b> yaratib beraman.\n\n"
+            "🎁 <b>AKSIYA: Birinchi buyurtmangiz — BEPUL!</b>\n"
+            "Bunda fayl ⭐️⭐️ Premium sifatda tayyorlanadi.\n\n"
+            "💎 <b>Keyingi buyurtmalar uchun tariflar:</b>\n"
+            "⭐️ Standart — 3 000 so'm\n"
+            "⭐️⭐️ Premium — 5 000 so'm\n"
+            "⭐️⭐️⭐️ Yuqori Sifatli Premium — 7 000 so'm\n\n"
+            "Boshlash uchun pastdagi tugmalardan birini bosing! 👇"
+        )
 
     await message.answer(
         welcome_text,
@@ -333,6 +344,18 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
     slide_count = int(data.get("slideCount", 5))
     language = data.get("language", "uz")
 
+    DESIGN_NAMES = {
+        "": "🤖 AI mavzuga mos tanlaydi",
+        "matematika": "Dizayn 1", "fizika": "Dizayn 2", "kimyo": "Dizayn 3",
+        "biologiya": "Dizayn 4", "tarix": "Dizayn 5", "adabiyot": "Dizayn 6",
+        "geografiya": "Dizayn 7", "informatika": "Dizayn 8",
+        "iqtisodiyot": "Dizayn 9", "ingliz": "Dizayn 10",
+    }
+    TARIFF_NAMES = {
+        "standart": "⭐️ Standart", "premium": "⭐️⭐️ Premium",
+        "premium_plus": "⭐️⭐️⭐️ Yuqori Sifatli Premium",
+    }
+
     if not topic:
         await message.answer("❌ Mavzu kiritilmagan. Iltimos qaytadan urinib ko'ring.")
         return
@@ -349,17 +372,22 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
             return
 
     # Kutish xabari
+    tariff = data.get("tariff", "standart")
+    design = str(data.get("design", "") or "").strip().lower()
+    design_label = DESIGN_NAMES.get(design, DESIGN_NAMES[""])
+    tariff_label = TARIFF_NAMES.get(tariff, TARIFF_NAMES["standart"])
+    img_label = ("dizaynga mos professional rasmlar" if design
+                 else "har bir slayd uchun AI yaratadi")
+
     wait_msg = await message.answer(
         "⏳ <b>Slayd tayyorlanmoqda...</b>\n\n"
         f"📌 Mavzu: {topic}\n"
         f"📑 Slaydlar soni: {slide_count}\n"
-        f"🎨 Dizayn: AI mavzuga mos tanlaydi\n"
-        f"🖼 Rasmlar: har bir slayd uchun AI yaratadi\n\n"
+        f"🎨 Dizayn: {design_label}\n"
+        f"💎 Tarif: {tariff_label}\n"
+        f"🖼 Rasmlar: {img_label}\n\n"
         "Bu jarayon 1-3 daqiqa vaqt olishi mumkin, iltimos kuting..."
     )
-
-    tariff = data.get("tariff", "standart")
-    design = data.get("design", "")
 
     try:
         log.info(f"SLAYD boshlandi: topic='{topic}', count={slide_count}, tariff={tariff}, design={design}")
@@ -384,6 +412,10 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
         if author:
             slide_data["author"] = author
 
+        # Dizaynni slide_data ichiga ham yozamiz (himoya — hech qayerda yo'qolmasin)
+        slide_data["design"] = design
+        log.info(f"SLAYD: generatorga uzatilayotgan dizayn = '{design}'")
+
         # PPTX generatsiya (rasmlar yuklab olinadi — maksimal 8 daqiqa, 25 slayd uchun)
         pptx_bytes = await asyncio.wait_for(
             asyncio.to_thread(generate_professional_pptx, slide_data, None, None, design),
@@ -405,7 +437,8 @@ async def process_slide_request(message: Message, user_id: int, data: dict):
             caption=f"✅ <b>Tayyor!</b>\n\n"
                     f"📌 Mavzu: {topic}\n"
                     f"📑 Slaydlar: {len(slide_data.get('slides', []))} ta\n"
-                    f"🎨 Dizayn: AI tomonidan mavzuga moslab tanlandi\n"
+                    f"🎨 Dizayn: {design_label}\n"
+                    f"💎 Tarif: {tariff_label}\n"
                     f"🖼 Har bir varaq har xil dizaynda, rasmli fonlar bilan\n\n"
                     f"PowerPoint (.pptx) formatida. Yuklab oling!"
         )
@@ -454,9 +487,16 @@ async def process_course_request(message: Message, user_id: int, data: dict):
             )
             return
 
+    TARIFF_NAMES = {
+        "standart": "⭐️ Standart", "premium": "⭐️⭐️ Premium",
+        "premium_plus": "⭐️⭐️⭐️ Yuqori Sifatli Premium",
+    }
+    tariff_label = TARIFF_NAMES.get(data.get("tariff", "standart"), "⭐️ Standart")
+
     wait_msg = await message.answer(
         f"⏳ <b>Kurs ishi tayyorlanmoqda...</b>\n\n"
-        f"📌 Mavzu: {topic}\n\n"
+        f"📌 Mavzu: {topic}\n"
+        f"💎 Tarif: {tariff_label}\n\n"
         "Bu jarayon 1-2 daqiqa vaqt olishi mumkin..."
     )
 
@@ -489,6 +529,7 @@ async def process_course_request(message: Message, user_id: int, data: dict):
             file,
             caption=f"✅ <b>Kurs ishi tayyor!</b>\n\n"
                     f"📌 Mavzu: {topic}\n"
+                    f"💎 Tarif: {tariff_label}\n"
                     f"📄 Format: Microsoft Word (.docx)\n\n"
                     f"Yuklab oling va kerakli tahrirlarni kiriting!"
         )
@@ -678,9 +719,15 @@ async def help_command(message: Message):
         "4. Tayyor faylni yuklab oling!\n\n"
         "<b>Kurs ishi uchun:</b>\n"
         "1. <b>📝 Kurs ishi yaratish</b> tugmasini bosing\n"
-        "2. Mavzuni kiriting\n"
+        "2. Mavzu va titul ma'lumotlarini kiriting\n"
         "3. Kurs ishi DOCX formatda tayyor bo'ladi\n\n"
-        "⚠️ <b>Cheklovlar:</b> Kuniga 10 ta slayd, 5 ta kurs ishi.",
+        "🎁 <b>AKSIYA:</b> Birinchi buyurtma — BEPUL (Premium sifatda)!\n\n"
+        "💎 <b>Tariflar:</b>\n"
+        "⭐️ Standart — 3 000 so'm (oddiy mavzular)\n"
+        "⭐️⭐️ Premium — 5 000 so'm (ilmiy terminlarga boy)\n"
+        "⭐️⭐️⭐️ Yuqori Sifatli Premium — 7 000 so'm (eng kuchli AI)\n\n"
+        "🎨 <b>Dizaynlar:</b> 10 xil tayyor dizayn yoki AI avtomatik tanlaydi.\n"
+        "🖼 Rasmlar mavzuga mos, har varaq har xil dizaynda.",
         reply_markup=main_keyboard(),
     )
 
@@ -980,6 +1027,12 @@ async def on_startup():
         log.info(f"✅ AI initialized with model: {model}")
     else:
         log.warning("⚠️ AI API key not set!")
+
+    # Eski standart welcome xabarini tozalash (yangi matn ishlashi uchun)
+    old_welcome = await get_setting("welcome_message")
+    if old_welcome and "professional <b>Slayd va Kurs ishi</b> yaratuvchi botman" in old_welcome:
+        await set_setting("welcome_message", "")
+        log.info("Eski welcome xabari tozalandi — yangi aksiya matni ishlaydi")
 
     # Eski webhook bo'lsa o'chirish (polling to'g'ri ishlashi uchun)
     await bot.delete_webhook(drop_pending_updates=True)
