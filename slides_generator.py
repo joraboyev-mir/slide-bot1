@@ -12,6 +12,7 @@ from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
 from PIL import Image, ImageDraw, ImageFilter, ImageEnhance
 import io
+import re
 import requests
 import urllib.parse
 import random
@@ -58,30 +59,56 @@ def build_theme(theme_colors: dict | None) -> dict:
 
 # ==================== RASM YUKLASH ====================
 
-def _fetch_ai_image(prompt: str, width: int = 1024, height: int = 576, seed: int = 0) -> bytes | None:
-    """Pollinations AI orqali mavzuga mos rasm generatsiya qilish (bepul, kalitsiz).
-    flux modeli — yuqori sifat, realistik natija"""
-    # 1-urinish: flux (eng sifatli model)
+def _is_image(resp) -> bool:
+    """Javob haqiqiy rasmmi?"""
+    ct = resp.headers.get('content-type', '')
+    return resp.status_code == 200 and len(resp.content) > 5000 and 'image' in ct
+
+
+def _fetch_stock_photo(keywords: str, width: int = 1024, height: int = 576, seed: int = 0) -> bytes | None:
+    """LoremFlickr — HAQIQIY stok fotolar (juda ishonchli va tez zaxira)"""
+    # kalit so'zlarni tozalash: faqat oddiy inglizcha so'zlar
+    words = re.findall(r'[a-zA-Z]+', keywords)[:3]
+    if not words:
+        words = ["business"]
+    tags = ",".join(words)
     try:
-        enc = urllib.parse.quote(prompt[:200])
-        url = (f"https://image.pollinations.ai/prompt/{enc}"
-               f"?width={width}&height={height}&nologo=true&seed={seed}&model=flux&enhance=true")
-        resp = requests.get(url, timeout=45)
-        if resp.status_code == 200 and len(resp.content) > 5000:
+        url = f"https://loremflickr.com/{width}/{height}/{urllib.parse.quote(tags)}?lock={seed % 100}"
+        resp = requests.get(url, timeout=15)
+        if _is_image(resp):
             return resp.content
     except Exception:
         pass
-    # 2-urinish: turbo (tezroq zaxira)
+    return None
+
+
+def _fetch_ai_image(prompt: str, width: int = 1024, height: int = 576, seed: int = 0,
+                    fast: bool = False) -> bytes | None:
+    """Rasm olish: Pollinations AI (flux) → turbo → LoremFlickr (real foto).
+    Har doim rasm qaytarishga harakat qiladi! fast=True — flux o'tkazib yuboriladi"""
+    # 1-urinish: flux (eng sifatli AI rasm) — fast rejimda o'tkazib yuboriladi
+    if not fast:
+        try:
+            enc = urllib.parse.quote(prompt[:200])
+            url = (f"https://image.pollinations.ai/prompt/{enc}"
+                   f"?width={width}&height={height}&nologo=true&seed={seed}&model=flux")
+            resp = requests.get(url, timeout=40)
+            if _is_image(resp):
+                return resp.content
+        except Exception:
+            pass
+    # 2-urinish: turbo (tez AI rasm)
     try:
         enc = urllib.parse.quote(prompt[:150])
         url = (f"https://image.pollinations.ai/prompt/{enc}"
                f"?width={width}&height={height}&nologo=true&seed={seed}&model=turbo")
         resp = requests.get(url, timeout=25)
-        if resp.status_code == 200 and len(resp.content) > 5000:
+        if _is_image(resp):
             return resp.content
     except Exception:
         pass
-    return None
+    # 3-urinish: LoremFlickr — haqiqiy stok foto (deyarli har doim ishlaydi)
+    return _fetch_stock_photo(prompt, width, height, seed)
 
 
 def _fallback_gradient(width: int, height: int, theme: dict) -> bytes:
@@ -467,30 +494,35 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
         full_prompt = (f"{prompt}, ultra realistic professional stock photography, 4k quality, "
                        f"sharp focus, cinematic lighting, detailed, "
                        f"no text, no watermark, no cartoon, no illustration")
-        log.info(f"Rasm {i+1}/{len(slides)} yuklanmoqda: {prompt[:60]}")
-        raw = _fetch_ai_image(full_prompt, seed=1000 + i * 7)
+        # 12 tadan ko'p slaydda flux o'rniga turbo (tezlik uchun)
+        fast_mode = len(slides) > 12
+        raw = _fetch_ai_image(full_prompt, seed=1000 + i * 7, fast=fast_mode)
         if raw is None:
-            log.warning(f"Rasm {i+1} yuklanmadi — gradient fon ishlatiladi")
-            raw = _fallback_gradient(1280, 720, theme)
+            log.warning(f"Rasm {i+1}: AI ham, stok ham ishlamadi")
         else:
-            log.info(f"Rasm {i+1} tayyor ({len(raw)} bayt)")
+            log.info(f"Rasm {i+1}/{len(slides)} tayyor")
         return i, raw
 
     images = [None] * len(slides)
-    # Hamma rasmlarni BIR VAQTDA parallel yuklash (maksimal tezlik)
-    with ThreadPoolExecutor(max_workers=min(len(slides), 10)) as pool:
+    # ASOSIY rasmlar: 3 tadan parallel (Pollinations limitiga tushmaslik uchun!)
+    # Ko'p parallel so'rov yuborsak Pollinations rad etadi va rasmlar chiqmaydi
+    with ThreadPoolExecutor(max_workers=3) as pool:
         for i, raw in pool.map(_load_one, enumerate(slides)):
             images[i] = raw
-    log.info(f"Asosiy rasmlar tayyor: {len(images)} ta")
+    real_count = sum(1 for im in images if im is not None)
+    log.info(f"Asosiy rasmlar: {real_count}/{len(slides)} ta yuklandi")
 
-    # ---- QO'SHIMCHA (ikkinchi) rasmlar — o'rta slaydlar uchun ----
+    # Yuklanmaganlarga: real stok foto → gradient
+    for i in range(len(slides)):
+        if images[i] is None:
+            prompt = slides[i].get('image_prompt') or pres_title
+            images[i] = _fetch_stock_photo(prompt, seed=i * 3 + 1) or _fallback_gradient(1024, 576, theme)
+
+    # ---- QO'SHIMCHA (ikkinchi) rasmlar — real stok fotolardan (tez va ishonchli) ----
     def _load_secondary(args):
         i, s = args
         prompt = s.get('image_prompt') or pres_title
-        full_prompt = (f"{prompt}, detailed close-up professional photograph, realistic, "
-                       f"high resolution, natural lighting, "
-                       f"no text, no watermark, no cartoon")
-        raw = _fetch_ai_image(full_prompt, seed=5000 + i * 13)
+        raw = _fetch_stock_photo(prompt, seed=5000 + i * 13)
         if raw is None:
             raw = _fallback_gradient(1024, 576, theme)
         return i, raw
@@ -498,7 +530,7 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
     images2 = {}
     middle = [(i, s) for i, s in enumerate(slides) if 0 < i < len(slides) - 1]
     if middle:
-        with ThreadPoolExecutor(max_workers=min(len(middle), 10)) as pool:
+        with ThreadPoolExecutor(max_workers=8) as pool:
             for i, raw in pool.map(_load_secondary, middle):
                 if raw:
                     images2[i] = raw

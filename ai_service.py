@@ -92,6 +92,30 @@ def _parse_json_safe(text: str) -> dict:
         return json.loads(candidate)
     raise ValueError("AI javobini o'qib bo'lmadi. Qaytadan urinib ko'ring.")
 
+
+def _parse_json_array_safe(text: str) -> list:
+    """JSON massivni xavfsiz o'qish"""
+    cleaned = text.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+    start = cleaned.find('[')
+    if start > 0:
+        cleaned = cleaned[start:]
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+    repaired = _repair_truncated_json(cleaned)
+    try:
+        return json.loads(repaired)
+    except json.JSONDecodeError:
+        return []
+
 # Default API kalit (bo'sh — foydalanuvchi o'zi qo'shadi)
 _client = None
 _model_name = "gemini-2.0-flash"
@@ -241,7 +265,44 @@ HAR BIR slaydda "image_prompt" MAJBURIY va har xil bo'lsin!
 
     # 25 tagacha slayd uchun katta limit
     result = _generate(prompt, max_tokens=40000)
-    return _parse_json_safe(result)
+    data = _parse_json_safe(result)
+
+    # ===== SLAYDLAR SONINI KAFOLATLASH =====
+    # AI kam yozgan bo'lsa — yetishmagan slaydlarni qo'shimcha so'rov bilan to'ldiramiz
+    slides = data.get('slides', [])
+    attempts = 0
+    while len(slides) < num_slides and attempts < 3:
+        missing = num_slides - len(slides)
+        existing_titles = "\n".join(f"- {s.get('title', '')}" for s in slides)
+        extra_prompt = f"""Siz professional taqdimot yaratuvchisiz. "{topic}" mavzusi bo'yicha
+taqdimotga YANA {missing} ta YANGI kontent slayd kerak.
+
+Quyidagi mavzular ALLAQACHON yoritilgan (ularni TAKRORLAMANG):
+{existing_titles}
+
+Mavzuning BOSHQA jihatlarini yoriting (tarixi, statistikasi, texnologiyasi, muammolari,
+taqqoslash, qiziqarli faktlar, mintaqaviy jihatlar, shaxslar, kelajak...).
+TIL: {"O'zbek" if language == "uz" else "Rus" if language == "ru" else "English"}
+
+Har slaydda: "type" ("content" yoki "bullet_list"), "title", "content" (60-120 so'z, aniq
+faktlar bilan), "subtitle" (qiziq fakt), "bullet_points" (bullet_list uchun 5-6 ta),
+"image_prompt" (ingliz tilida rasm tavsifi).
+
+JAVOB — FAQAT JSON MASSIV:
+[{{"type": "content", "title": "...", "content": "...", "subtitle": "...", "bullet_points": [], "image_prompt": "..."}}]"""
+
+        extra_result = _generate(extra_prompt, max_tokens=30000)
+        extra_slides = _parse_json_array_safe(extra_result)
+        if extra_slides:
+            # Xulosa slaydidan OLDIN qo'shamiz
+            if slides and slides[-1].get('type') == 'conclusion':
+                slides = slides[:-1] + extra_slides[:missing] + [slides[-1]]
+            else:
+                slides = slides + extra_slides[:missing]
+        attempts += 1
+
+    data['slides'] = slides
+    return data
 
 
 def generate_course_work_content(topic: str, language: str = "uz") -> dict:
