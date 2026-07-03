@@ -45,6 +45,32 @@ SUBJECT_THEMES = {
     "ingliz":     {"primary": "#B71C1C", "accent": "#1565C0", "dark": "#3C0A0A", "light": "#FFEBEE"},
 }
 
+# Har fan dizayni uchun 4 ta stok rasm — Mini App preview'dagi bilan BIR XIL!
+_PX = "https://images.pexels.com/photos/{0}/pexels-photo-{0}.{1}?auto=compress&cs=tinysrgb&fit=crop&h=720&w=1280"
+SUBJECT_IMAGES = {
+    "matematika": [_PX.format(6238050,'jpeg'), _PX.format(6256066,'jpeg'), _PX.format(5412336,'jpeg'), _PX.format(5412287,'jpeg')],
+    "fizika":     [_PX.format(13014236,'jpeg'), _PX.format(27088485,'jpeg'), _PX.format(7723393,'jpeg'), _PX.format(37269536,'jpeg')],
+    "kimyo":      [_PX.format(8533087,'jpeg'), _PX.format(6208943,'jpeg'), _PX.format(5427863,'jpeg'), _PX.format(8533140,'jpeg')],
+    "biologiya":  [_PX.format(18069423,'png'), _PX.format(1302883,'jpeg'), _PX.format(10448365,'jpeg'), _PX.format(12642803,'jpeg')],
+    "tarix":      [_PX.format(35284819,'jpeg'), _PX.format(19227934,'jpeg'), _PX.format(6493636,'jpeg'), _PX.format(16386337,'jpeg')],
+    "adabiyot":   [_PX.format(13923801,'jpeg'), _PX.format(34640246,'jpeg'), _PX.format(13921129,'jpeg'), _PX.format(34412232,'jpeg')],
+    "geografiya": [_PX.format(1098518,'jpeg'), _PX.format(23848552,'jpeg'), _PX.format(7412075,'jpeg'), _PX.format(18383537,'jpeg')],
+    "informatika":[_PX.format(6424583,'jpeg'), _PX.format(5480781,'jpeg'), _PX.format(7325498,'jpeg'), _PX.format(17489157,'jpeg')],
+    "iqtisodiyot":[_PX.format(186461,'jpeg'), _PX.format(6801639,'jpeg'), _PX.format(7792841,'jpeg'), _PX.format(5398879,'jpeg')],
+    "ingliz":     [_PX.format(13887712,'jpeg'), _PX.format(7450476,'jpeg'), _PX.format(17379169,'jpeg'), _PX.format(4440715,'jpeg')],
+}
+
+
+def _fetch_url_image(url: str) -> bytes | None:
+    """URL'dan rasm yuklab olish"""
+    try:
+        resp = requests.get(url, timeout=20)
+        if resp.status_code == 200 and len(resp.content) > 5000:
+            return resp.content
+    except Exception:
+        pass
+    return None
+
 
 def hex_to_rgb(hex_str: str) -> RGBColor:
     """#RRGGBB -> RGBColor"""
@@ -797,12 +823,33 @@ def generate_professional_pptx(slide_data: dict, image_prompts: list[str] = None
             if (i - 2) % 4 == 0 and i >= 2:
                 image_indices.add(i)
 
-    # Faqat kerakli rasmlarni yuklaymiz (mavzuga mos, AI yaratgan)
-    to_load = [(i, slides[i]) for i in sorted(image_indices)]
     images = [None] * n
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        for i, raw in pool.map(_load_one, to_load):
-            images[i] = raw
+
+    if design and design in SUBJECT_IMAGES:
+        # ===== FAN DIZAYNI: preview'dagi BIR XIL stok rasmlar ishlatiladi =====
+        subject_urls = SUBJECT_IMAGES[design]
+        url_cache = {}
+
+        def _load_subject(args):
+            pos, i = args
+            url = subject_urls[pos % len(subject_urls)]
+            if url in url_cache:
+                return i, url_cache[url]
+            raw = _fetch_url_image(url)
+            url_cache[url] = raw
+            return i, raw
+
+        tasks = [(pos, i) for pos, i in enumerate(sorted(image_indices))]
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for i, raw in pool.map(_load_subject, tasks):
+                images[i] = raw
+        log.info(f"Fan dizayni '{design}': stok rasmlar yuklandi")
+    else:
+        # ===== AI REJIMI: mavzuga mos AI rasmlar =====
+        to_load = [(i, slides[i]) for i in sorted(image_indices)]
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            for i, raw in pool.map(_load_one, to_load):
+                images[i] = raw
 
     # Yuklanmagan (kerakli) rasmlarga gradient zaxira
     for i in image_indices:
